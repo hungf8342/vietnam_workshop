@@ -1,0 +1,226 @@
+---
+title: "Continuous Variables"
+subtitle: "Measures and Basic Tests"
+author: "Frances Hung"
+date: "10/6/2022"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message=FALSE)
+library(tidyverse)
+library(Gmisc)
+library(Hmisc)
+library(gtsummary)
+library(broom)
+library(medicaldata)
+#library(flextable)
+```
+
+Today, we will briefly go over common measures used to describe continuous data:
+
+-   Centrality measures (mean, median, mode)
+-   Measures of spread (standard deviation, range, interquartile range)
+
+Statistical models will often make inferences on centrality measures, and these models will also need measures of spread as input. 
+
+After this, we will cover basic ways of comparing continuous measures between groups differentiated by a characteristic. Some of these concepts (t-tests, correlation) are also applicable to and important for understanding discrete data as well.
+
+## Review: Data Cleaning and Visualization
+
+Since today's lecture is focused on continuous variables, let's clean and visualize a dataset that we can use for the remainder of the lecture. For this lecture and the next few, we'll use a dataset called `indo_rct` which has data from a randomized control trial (RCT) on using indomethacin for prevention of post-ERCP pancreatitis. 
+
+For today's outcome, we'll focus on the continuous measure `risk` (a patient's estimated risk score). Other variables that we'll need for today are:
+
+- age
+- pep (risk factor: previous post-ERCP pancreatitis)
+- psphinc (risk factor: whether pancreatic sphincteromy was performed)
+
+We start by getting a general sense of the data. Let's take a peek.
+
+```{r head-indo, options}
+indo_rct_day3 <- indo_rct %>%
+  select(risk, age, pep, psphinc)
+
+head(indo_rct_day3)
+
+# the categorical variables are already in factor form, so no need to modify inside summary command
+summary(indo_rct_day3)
+```
+Notice that all categorical variables have a number, underscore, no/yes for a value. This is redundant information, so we can get rid of the no/yes.
+
+```{r clean, options}
+indo_rct_day3_clean <- indo_rct_day3 %>%
+  mutate(across(c(pep, psphinc),
+                ~str_remove(.x, "(.*)_")))
+
+head(indo_rct_day3_clean)
+```
+
+### Exercises: Data Visualization
+
+1. Recreate the boxplot below.
+```{r indo-rct, options}
+indo_rct_day3_clean %>%
+  ggplot(aes(x=pep, y=risk)) +
+  geom_boxplot()
+```
+
+2. Fit a dotplot with age on the x-axis and risk score on the y-axis.
+
+```{r dotplot, options}
+indo_rct_day3_clean %>%
+  ggplot(aes(x=age, y=risk)) +
+  geom_point()
+```
+
+## Centrality Measures
+
+The goal of statistics is to simplify data into easily interpretable numbers. The ones we often use to describe "average" behavior include the mean, median, and mode.
+
+The **mean** of a continuous variable is the sum of continuous values from the sample divided by the sample size. 
+
+The **median** of a continuous variable is the number at the 
+
+The **mode** of a continuous variable may not be as meaningful as the other two centrality measures.
+
+
+
+### Exercises: Measures
+
+1. Calculate the mean and median of risk score by pep and psphinc using tidyverse.
+
+```{r centrality-ex, options}
+indo_rct_day3_clean %>%
+  group_by(pep, psphinc) %>%
+  summarise(mean_risk = mean(risk),
+            median_risk = median(risk))
+```
+
+## Group comparisons of events
+
+We can talk about basic ways of comparing continuous centrality measures among different groups, now that we've defined what centrality and spread measures are. This is our first foray into statistical tests. This workshop is not meant to give statistical background on these tests, so stay tuned for the in-person workshop (or consult with a statistician) before using these tests in research projects.
+
+Below are three different ways of visualizing or testing continuous centrality measure differences among groups.
+
+-   Correlation
+-   T-test
+-   Wilcoxon
+
+More sophisticated ways of testing continuous measure differences between groups (like linear regression, adjusting for other variables) will be introduced later.
+
+## Correlation
+
+Correlation is a rough measure of how associated two variables are. Most correlation measures range from -1 to 1, where a correlation of 1 means as one variable becomes more positive, the other does as well. A correlation of -1 means that as one variable becomes more positive, the other becomes more negative, and a correlation of 0 means no relationship.
+
+The code below calculates the Pearson correlation measure, which assumes a linear relationship between continuous variables, as well as the Spearman correlation, which doesn't.
+
+We can use correlation to look at event-related variables as well, as we'll see in our next lecture.
+
+```{r cor, options}
+cor(indo_rct_day3_clean$risk, indo_rct_day3_clean$age,
+    method = "pearson")
+
+cor(indo_rct_day3_clean$risk, indo_rct_day3_clean$age,
+    method = "spearman")
+```
+
+## T-test (Parametric)
+
+The t-test approximates how likely we'd see the observed difference in means, assuming that the true means of the groups are actually the same. A small p-value means that there is evidence that the true means of the groups are different.
+
+It assumes that if we took many samples from the two group populations, the resulting sample means would be normally distributed (bell-shaped). This usually holds if we have a large enough sample size. (INSERT FIGURE HERE)
+
+```{r t-test, options}
+t.test(indo_rct_day3_clean$risk ~ indo_rct_day3_clean$pep)
+```
+
+## Wilcoxon (Non-parametric)
+
+Similarly to the t-test, the chi-squared test approximates how likely we'd see the observed difference in proportions, assuming that the true **medians** of the groups are actually the same. A small p-value means that there is evidence that the true medians of the groups are different.
+
+It doesn't have the same normality assumption as the t-test, making it good for small samples where the assumption may not hold. However, the t-test is more powerful (has a higher ability to correctly reject the null hypothesis if the alternative is in fact true) than the Wilcoxon under correct normality assumptions. The mean rather than the median is often of more interest to researchers, since it is what is available for interpretation when we do standard regression (our next section).
+
+## Linear regression
+
+Linear regression, which makes inferences on the mean of the outcome, is more complex but more robust than the previous tests. One drawback of the tests measured previously is that we cannot account for confounding variables. A confounding variable is a measure other than the one of interest that can influence our outcome.
+
+For example, let's say that we have the following dataset, where x appears to be correlated with y.
+
+But this can be somewhat explained by z.
+
+The solution is to fit a line to the data, where the dependent variables on the right consist of our measure of interest and potential confounders.
+
+In the next section we will go over:
+
+- fitting the model
+- visualizing the model (for univariate analysis)
+- interpreting and tidying the results output
+- model checks
+- predicting outcomes for new data
+
+
+### Fitting in R
+
+To fit a linear regression in R, we use the `lm` function, which takes in an equation and a dataframe at the minimum.
+
+```{r lm, options}
+risk_model <- lm(risk ~ age + pep + psphinc, 
+                 data = indo_rct_day3_clean)
+
+summary(risk_model)
+```
+
+### Visualizing
+
+Just to build intuition, we can visually see what regression is doing in the case of a univariate analysis (where only our measure of interest is on the right hand side of the equation). In ggplot, there is a `geom_line` layer which draws the regression line.
+
+```{r regression-viz, options}
+indo_rct_day3_clean %>%
+  ggplot(aes(x=age, y=risk)) +
+  geom_point() +
+  geom_smooth(method="lm")
+```
+
+Usually, we don't visualize regressions because each dependent variable would add a dimension onto the plot. 
+
+### Interpretation and Tidying Results
+
+To get results from our fit model created from `lm`, we can use the `summary` command. I won't go into detail about interpretation, but each term has two important measures listed: the effect size and p-value. 
+
+```{r results-summary, options}
+summary(risk_model)
+```
+
+The effect size tells us the estimated effect of a one-unit difference (if dependent variable is continuous) or value change (if dependent variable is categorical) on the expected value (mean) of the outcome.
+
+The p-value tells us how sure we are about the estimated effect. 
+
+The summary output doesn't look very nice, so we can put it into nice dataframe form using `tidy`. We can make it look even nicer with the kableExtra package below.
+
+```{r results-kable, options}
+summary(risk_model) %>%
+  tidy() 
+```
+
+### Model Checks
+
+One important thing to do when fitting linear models is perform checks on the assumptions it makes. If these assumptions are false, then the model may produce misleading results.
+
+```{r heteroskedastic-residuals, options}
+par(mfrow = c(2, 2))
+plot(risk_model)
+```
+
+
+
+### Predicting Outcomes
+
+If we want to predict the expected value of the outcome for observations not in the original dataset, we can use the `predict` function.
+
+```{r results-predict, options}
+predict(risk_model, newdata = sample_n(indo_rct_day3_clean, 4))
+```

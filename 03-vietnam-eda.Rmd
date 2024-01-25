@@ -1,0 +1,195 @@
+---
+title: "Exploratory Analysis"
+subtitle: "Tables, Plots, and Summary Statistics in R"
+author: "Frances Hung"
+date: "10/6/2022"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE)
+library(tidyverse)
+library(Gmisc)
+library(Hmisc)
+library(gtsummary)
+library(medicaldata)
+# library(nhanesA)
+#library(flextable)
+```
+
+
+# Packages Used Today
+
+- base R (loaded by default and used for any coding in R)
+    + summary
+    + mean
+    + median
+    + quantile
+- `tidyverse` for data exploration (specifically, `dplyr` for wrangling and `ggplot2` for data visualization)
+    + select: select column by name
+    + rename\_with: 
+    + ggplot
+    + geom\_bar
+    + labs
+- `gtsummary` for tables
+
+Now that we're acquainted with Rstudio and the basic syntax of R, we can briefly talk about exploring data using summary statistics and visualizations. We will use `dplyr` and `ggplot2`, both which are packages included in the tidyverse bundle of packages.
+
+## Review
+
+Let's clean up the `strep_tb` dataset so we can make tables and figures.
+
+First, we take a quick look at it using the `summary` command.
+
+```{r lwhiv, options}
+summary(strep_tb)
+```
+
+The values for a lot of the variables consist of a number, underscore, description. To avoid redundancy, we remove the number and underscore from those values.
+
+```{r strep-clean, options}
+strep_tb_clean <- strep_tb %>%
+  mutate(across(c(baseline_condition, baseline_temp, 
+                baseline_esr, strep_resistance,
+                radiologic_6m),
+         ~str_remove(.x, "(.*)_") %>%
+           as.factor()))
+```
+
+## Data Summary
+
+We first go over how to make descriptive tables and figures, then pivot to summary statistics. We'll be using the `strep_tb` dataset. 
+
+## Tables
+
+If your dataframe is in a tidy format, outputting a Table 1 is fairly straightforward. We use the `tbl_summary` function from the `gtsummary` package to help us create these sorts of tables. The `as_flex_table` function converts the table to a Word-compatible format.
+
+We pipe in the dataframe we want to summarize into the `tbl_summary` function, which also takes in the column names we want to display as well as the column we want to stratify by. If we don't have any stratifying variables in our Table 1, we create a column with one value and "stratify" by that column. 
+
+```{r tables, options}
+strep_tb_clean %>%
+  # don't include patient ID in table
+  select(-patient_id) %>%
+  tbl_summary() %>%
+  # allows us to knit tables to Word
+  as_flex_table()
+```
+
+In order to make the variable names look nicer, we can relabel the base dataframe:
+
+```{r re-label, options}
+strep_tb_clean %>%
+  # don't include patient ID in table
+  select(-c(patient_id, dose_PAS_g)) %>%
+  rename_with(function(x) str_replace_all(x,"_", " ") %>%
+                str_to_title()) %>%
+  tbl_summary() %>%
+  # allows us to knit tables to Word
+  as_flex_table()
+```
+
+We can give the function more optional parameters to make the table 1 more readable.
+
+```{r add-params, options}
+
+```
+
+## Visualizations
+
+In order to visualize our data, we can use the `ggplot2` package, which is loaded in through tidyverse. Plotting requires feeding a dataframe with the variables we want to plot into the `ggplot` function, along with the column names of the variables we want plotted on the x and/or y axis. 
+
+In the example below, the parameters inside of aes() tells `ggplot2` tells it information essential for mapping data to the plot. The x axis should consist of the treatment arm, and whatever plot we make should be colored (filled) by the radiographic number.
+
+```{r empty-ggplot, options}
+strep_tb_clean %>%
+  ggplot(aes(x=arm, fill=as.factor(rad_num)))
+```
+
+Notice that nothing was plotted when the above code chunk was run. This is because we then have to tell ggplot what sort of graph (geoms) or graph component we'd like to add. For example, we can plot a barplot which has arm on the x-axis and viral load on the y-axis by adding `geom_boxplot()` to the base ggplot layer. We add the "fill" aesthetic to specify that the barplot should be filled (colored) in by radiographic number. 
+
+```{r label, options}
+strep_tb_clean %>%
+  ggplot(aes(x=arm, fill=as.factor(rad_num))) +
+  geom_bar(position = "dodge") 
+```
+
+The `ggplot2` syntax is additive, so we can keep on adding graphs and graph components. Below, we add points and axis labels to replace the current ones:
+
+```{r more-ggplot-layers, options}
+strep_tb_clean %>%
+  ggplot(aes(x=arm, fill=as.factor(rad_num))) +
+  geom_bar(position = "dodge") +
+  labs(fill="Radiographic Outcome \n (Worst-Best)",
+       x="Treatment Arm",
+       y="# Patients")
+```
+
+### More Geoms
+
+There are many more geoms that `ggplot2` supports. A few commonly used ones include:
+
+- Histograms: geom_histogram()
+- Boxplots: geom_boxplot()
+- Points: geom_point()
+
+Remember that some geoms need more information than others. For boxplots for example, you need to provide both x and y parameters in the aes() argument. 
+
+The below boxplot has the same information as the barplot above, but we treat radiographic number as a continuous variable.
+
+```{r geom-boxplot, options}
+strep_tb_clean %>%
+  ggplot(aes(x=arm, y=rad_num)) +
+  geom_boxplot() +
+  labs(x="Treatment Arm",
+       y="Radiographic Outcome")
+```
+
+### Exercises: Plots
+
+1. Add data points to the boxplot graph. What improvements could be made to the graph?
+2. Look up geom_jitter and use it instead to add points to the boxplot graph.
+
+## Summary Statistics
+
+### Foundational summary statistics
+
+```{r foundation-stats, options}
+# the mean
+mean(strep_tb_clean$rad_num)
+
+# the median
+median(strep_tb_clean$rad_num)
+
+# the 20% and 80% quantiles
+quantile(strep_tb_clean$rad_num, c(0.2, 0.8))
+```
+
+### Summary Statistics by Group
+
+We went over functions for mean, median, and quantiles of dataframe columns, but we often want these summary statistics by group. For example, patients in the TB study had different starting conditions; their radiographic outcomes may vary by starting condition.
+
+Two paired functions are useful for summary statistics: `group_by` and `summarise`. The first tells us what groups we want to summarize the data by, and the second tells us what function we want to use to summarize.
+
+```{r condition_summarise, options}
+strep_tb_clean %>%
+  # group by baseline condition
+  group_by(baseline_condition) %>%
+  # find mean by the above baseline condition groups
+  dplyr::summarize(meanRadNum=mean(rad_num))
+```
+
+A short cut for a popular summary statistic is `count`. The arguments, like for `group_by`, designate the groups we want to summarize the data by.
+
+
+```{r condition-count, options}
+strep_tb_clean %>%
+  group_by(baseline_condition) %>%
+  dplyr::summarise(n=n())
+
+strep_tb_clean %>%
+  count(baseline_condition)
+```
+

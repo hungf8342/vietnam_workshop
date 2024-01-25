@@ -1,0 +1,278 @@
+---
+title: "Programming in Tidyverse"
+subtitle: "Data Cleaning and Tidy Format"
+author: "Frances Hung"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Welcome to the preliminary coding workshops on Quantitative Methods for HIV Researchers! These lectures will serve as code introductions and guides for the in-person portion of the workshop. I will start each of these lectures with a list of packages used and concepts these packages are relevant for.
+
+Today, we will continue learning functions in tidyverse.
+
+# Packages Used Today
+
+-   base R (loaded by default and used for any coding in R)
+-   `tidyverse` for data wrangling
+
+```{r libs, warning=FALSE, message=FALSE}
+library(tidyverse)
+```
+
+# Review: Programming
+
+Since today's lecture furthur builds programming skills, let's practice some functions from last time. We use the `lwhiv` dataset.
+
+```{r lwhiv-read-in, options}
+lwhiv <- read.csv("Data/persons-living-with-hiv-aids.csv")
+
+head(lwhiv)
+```
+
+### Exercises
+
+1.  Filter `lwhiv` to contain rows from 2011. Assign this the variable name `lwhiv_2011`.
+2.  Use the `mutate` command to create a new column in `lwhiv_2011` called `Monthly_Avg`. For each row in the dataframe, this will be the `Count` column divided by 12.
+
+# Data Cleaning
+
+In addition to the tidyverse functions we've learned so far, we can add a few more functions:
+
+-   head: looks at the first $n$ rows of a dataframe
+-   select: isolate dataframe columns based on column name or condition
+-   filter: isolate dataframe rows based on a condition
+-   arrange: arrange a dataframe by a column
+-   mutate: create a new column, usually based on existing columns
+-   *separate: separate a column into two columns*
+-   *drop_na: drop rows with any missing (NA) values*
+
+We will demonstrate the two new functions when we're going through an example of tidying data. The next two are less straightforward than the ones above, so we'll demonstrate their use with `lwhiv`.
+
+-   *pivot_longer: take multiple columns and make the dataframe "taller"*
+-   *pivot_wider: take two columns and spread them "wider" into multiple columns*
+
+Currently, the Race/Ethnicity rows in the `lwhiv` dataset are structured so that each group for a given year has separate row.
+
+```{r pivot-setup, options}
+lwhiv_race <- filter(lwhiv,
+                     Category=="Race/Ethnicity")
+head(lwhiv_race)
+```
+
+We can change the structure to be wider (where new columns are defined by the unique race/ethnicity groups).
+
+```{r pivot-wider, options}
+pivot_wider(lwhiv_race, 
+            id_cols=Year,
+            names_from=Group, 
+            values_from = Count)
+```
+
+To do the opposite (condense multiple columns into two columns consisting of the column names and the corresponding values), we use `pivot_longer`. This is useful for getting dataframes into a format usable for making tables and plots.
+
+```{r pivot-longer, options}
+lwhiv_race_wide <- pivot_wider(lwhiv_race, 
+            id_cols=Year,
+            names_from=Group, 
+            values_from = Count)
+
+
+pivot_longer(lwhiv_race_wide,
+             cols=-Year, 
+             names_to = "Race/Ethnicity", 
+             values_to = "Count")
+```
+
+## Applying Multiple Functions
+
+Oftentimes, we'd like to apply more than one function consecutively on an object. An example using `lwhiv` would be wanting to filter for subpopulations with less than 4000, then selecting all columns except for the counts. We could do this in two separate commands, saving the intermediate dataframe in an intermediate variable.
+
+```{r multiple-func, options}
+df1 <- filter(lwhiv, Count <4000)
+head(df1)
+df2 <- select(lwhiv, Year, Category, Group)
+head(df2)
+```
+
+A more efficient way to code would be to use a single assignment and chain the two functions together to avoid creating an unneccessary intermediate variable. Before `tidyverse`, the usual way of doing this was by nesting functions:
+
+```{r nest-funcs, options}
+head(
+  select(
+    filter(lwhiv, Count<4000), 
+       Year, Category, Group))
+```
+
+In the above code, R first carries out the inner function (filtering for rows with Count \< 4000). Then, from the resulting dataframe, it selects the columns `Year`, `Category`, and `Group`. One issue is that when we have many consecutive functions to carry out, we have to code from the inside out. This leads to inefficiencies in debugging and coding.
+
+In order to do this in a more reader-friendly format using `tidyverse`, we use what's known as a pipe: "%\>%".
+
+```{r pipe, options}
+lwhiv %>% 
+  filter(Count <4000) %>%
+  select(Year, Category, Group) %>%
+  head()
+
+```
+
+Notice here that the pipe, true to its name, takes the object to its left and "pipes" it into the first argument of the function on the right. In words, the above code chunk:
+
+1.  Takes the dataframe `lwhiv`.
+2.  Pipes it into the filter command so we filter for subgroups of `lwhiv` which have count less than 4000.
+3.  Pipes the filtered observations of df into the select command so we only retain the year, category, and group columns.
+4.  Pipes the filtered and selected observation in the head function so only the first 6 rows are displayed.
+
+### Exercises: Multiple Tidyverse Functions
+
+1.  Use the `filter` function to first get rows corresponding to Transmission Category: Female Adult or Adolescent in the year 2015. Then use the `arrange` and `head` functions in that order to find the 3 groups with the most cases.
+2.  In 2015, which two race/ethnic group had the most cases?
+
+# Tidy Format
+
+Other than isolating rows and columns and creating new variables from existing ones, `tidyverse` also helps us get data into "tidy" format needed for making tables and plots.
+
+![Example of a tidy dataframe, from *R for Data Science*, Garrett Grolemund, Hadley Wickham](Figures/tidy-1.png)
+
+Here are some not-so-tidy examples:
+
+```{r}
+table2
+
+table3
+
+table4a
+
+table4b
+```
+
+All have the same information, but they all have issues that make them harder to work with. As we will see, the data manipulation, visualization and modeling tools in tidyverse (and R in general) are designed to work with tidy data.
+
+## `tidyr` for tidying data
+
+We will work with a toy data set to get to know the functions in `tidyr`.
+
+```{r}
+n <- 4
+df <- tibble(
+    pid = c(1,3,4,5),
+    desc = paste(sample(c('M', 'F'), n, replace=T),
+                    '-', 
+                    sample(10:70, n),
+                    sep=''),
+    visit1 = rpois(n, lambda = 20),
+    visit2 = rpois(n, lambda=10)
+)
+
+df[3,3] = NA
+
+df
+
+```
+
+### Pivot_longer
+
+Problem 1: Each row has **2** observations.
+
+```{r}
+df %>% 
+    pivot_longer(cols = c(visit1,visit2), 
+                 names_to = "visit", values_to = "measurement")
+
+```
+
+### Separate
+
+Problem 2: There are two values in the cells of `desc`.
+
+```{r}
+
+df %>% 
+pivot_longer(cols = c(visit1,visit2), 
+                 names_to = "visit", values_to = "measurement") %>%
+separate(desc, sep="-", into=c("sex", "age"))
+
+```
+
+### Mutate and drop
+
+Problem 3: Age is not numeric, and there is a missing (NA) measurement.
+
+```{r}
+
+df1 <- df %>% 
+pivot_longer(cols = c(visit1,visit2), 
+                 names_to = "visit", values_to = "measurement") %>%
+separate(desc, sep='-', into=c("sex", "age")) %>%
+mutate(age=as.integer(age), 
+       visit=str_remove(visit, "visit"),
+       visit=as.integer(visit)) %>% 
+  drop_na(measurement)
+
+df1
+
+```
+
+### Join in another data frame
+
+Sometimes, we have separate dataframes with shared information that we'd like to combine. There are several ways we can join dataframes together.
+
+```{r}
+
+names <- tibble(
+    pid = 1:6,
+    first = c( "bob", "dan","ann", "liz", "joe", "jen"),
+    last = c("lim", "tan", "liu", "nguyn", "smith", "finkelstein")
+)
+
+names
+
+inner_join(df, names, by = "pid")
+
+left_join(df, names, by = "pid")
+
+right_join(df, names, by = "pid")
+
+full_join(df, names, by = "pid")
+```
+
+## Exercise
+
+```{r tabletidy, options}
+#pivot the "type" column into "cases" and "population" columns
+table2 %>%
+  pivot_wider(names_from = type,
+              values_from = count)
+
+#separate the rate column into cases and population
+table3 %>%
+  separate(col = rate, 
+           into = c("cases", "population"),
+           sep = "/")
+  
+
+#combine table 4a and table 4b
+table4b_tidy <- table4b %>%
+  pivot_longer(cols = c("1999", "2000"),
+               names_to = "year",
+               values_to = "population")
+
+table4a_tidy <- table4a %>%
+  pivot_longer(cols = c("1999", "2000"),
+               names_to = "year",
+               values_to = "cases")
+
+# the below are equivalent
+inner_join(table4a_tidy, table4b_tidy)
+
+table4a_tidy %>%
+  inner_join(table4b_tidy)
+
+
+```

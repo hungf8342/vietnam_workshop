@@ -5,6 +5,7 @@ author: "Frances Hung"
 date: "`r Sys.Date()`"
 output:
   html_document:
+    df_print: paged
     toc: true
     toc_float: true
 ---
@@ -242,7 +243,13 @@ right_join(df, names, by = "pid")
 full_join(df, names, by = "pid")
 ```
 
-## Exercise
+## Exercises: Tidying Data
+
+1. Pivot the "type" column in `table2` into "cases" and "population".
+
+2. Separate the "rate" column in `table3` into "cases" and "population".
+
+3. Combine table 4a and table 4b to create a table with three columns: "year", "population",  and "cases".
 
 ```{r tabletidy, options}
 #pivot the "type" column into "cases" and "population" columns

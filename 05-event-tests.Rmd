@@ -1,0 +1,124 @@
+---
+title: "Events"
+subtitle: "Measures and Basic Tests"
+author: "Frances Hung"
+date: "10/6/2022"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message=FALSE)
+library(tidyverse)
+library(Gmisc)
+library(Hmisc)
+library(gtsummary)
+library(medicaldata)
+#library(flextable)
+```
+
+Today, we will go over common measures used to describe event occurrence in populations. This includes language for describing:
+
+-   How often events occur (rates, incidence)
+-   How many individuals in the population have experienced an event (proportion, prevalence)
+-   How does a characteristic affects probability of experiencing an event (odds ratio, risk ratio)
+
+This will come in handy later, when we have to interpret regression models. For simplicity, we'll concentrate only on whether or not an event occurs (yes/no). We may briefly mention models for how event rates change over time later (Poisson and negative binomial regression), but this is outside of the scope of this introductory class. 
+
+After this, we will cover basic ways of comparing event rates and incidences between groups differentiated by a characteristic. Some of these concepts (t-tests, correlation) are also applicable to and important for understanding continuous data as well.
+
+## Review: Data Cleaning and Visualization
+
+Since today's lecture is focused on events, let's clean and visualize a dataset that we can use for the remainder of the lecture.
+
+## Rates, Proportions, Incidence and prevalence
+
+There are a few important measures scientists use to describe how often events occur and how widespread events are within a population.
+
+**Rate** measures how fast disease is occurring in a population.
+
+**Proportion** measures the fraction of population affected.
+
+**Incidence** focuses on new cases occurring during a specific time period and helps us understand the risk and dynamics of disease occurrence. It is an specific example of rate.
+
+Incidence rate over a defined time period = (Number of new cases) / (Population at risk)
+
+**Prevalence** considers both new and existing cases at a particular point or over a specified period and provides insights into the overall burden of the disease in a population. It is a specific example of proportion.
+
+Prevalence = (Number of existing cases) / (Total population)
+
+Say a city with fixed population 183000 has 26 new TB cases between January and June 2021. In June 2021, the number of active TB cases is 264. We can calculate the incidence of TB between January and June, as well as the prevalence of active TB in June based on this information.
+
+```{r}
+city.pop.march.2021 <- 183000
+tb.cases.new.jan.june.2021 <- 26
+tb.cases.active.june.2021 <- 264
+tb.cases.active.before.jan.2021 <- tb.cases.active.june.2021-tb.cases.new.jan.june.2021
+
+incidence.jan.june <- tb.cases.new.jan.june.2021/(city.pop.march.2021-tb.cases.active.before.jan.2021)
+prevalence.june.2021 <- tb.cases.active.june.2021/city.pop.march.2021
+```
+
+## Relative Risk and Odds Ratio
+
+**Risk factor**: A characteristic which may increase the risk of an event.
+
+**Relative Risk**: (Probability of an event among subjects with risk factor)/(Probability of an event among subjects without risk factor)
+
+The objective of a prospective study by Stenestrand et al. (Daniel& Cross, 2013) was to compare the mortality rate following an acute myocardial infarction (AMI) among subjects receiving early revascularization to the mortality rate among subjects receiving conservative treatments. Among 2554 patients receiving revascularization within 14 days of AMI, 84 died in the year following the AMI. In the conservative treatment group (risk factor present), 1751 of 19,358 patients died within a year of AMI.
+
+```{r RR, options}
+revasc <- 2554
+revasc.died <- 84
+conservative <- 19385
+conservative.died <- 1751
+
+
+RR.death <- (conservative.died/conservative)/(revasc.died/revasc)
+```
+
+**Odds**: (Probability of experiencing event)/(Probability of not experiencing event)
+
+**Odds Ratio**: (Odds of event among subjects with risk factor)/(Odds of event among subjects without risk factor)
+
+```{r OR, options}
+
+```
+
+### Exercises: Measures
+
+TODO: from a tidy dataset, create the 2x2 table and calculate incidence, rate, RR and OR.
+
+## Group comparisons of events
+
+We can talk about basic ways of comparing event rates and proportions among different groups, now that we've defined what rates and proportions are. This is our first foray into statistical tests. This workshop is not meant to give statistical background on these tests, so stay tuned for the in-person workshop (or consult with a statistician) before using these tests in research projects.
+
+Below are three different ways of visualizing or testing proportion differences among groups.
+
+-   Correlation
+-   T-test
+-   Chi-square
+
+More sophisticated ways of testing event rate differences between groups (like logistic regression, adjusting for other variables) will be introduced later.
+
+## Correlation
+
+As discussed previously, correlation is a rough measure of how associated two variables are. The Pearson correlation we used previously for continuous variables makes the assumption of normality and linear relationship between variables, which does not apply for events (yes/no).
+
+Instead, we must use either Spearman or Kendall's Tau.
+
+## T-test (Parametric)
+
+The t-test approximates how likely we'd see the observed difference in proportions, assuming that the true proportions of the groups are actually the same.
+
+It assumes that if we took many samples from the two group populations, the resulting mean proportion would be normally distributed (bell-shaped). This usually holds if we have a large enough sample size.
+
+## Chi-square (Non-parametric)
+
+Like the t-test, the chi-squared test approximates how likely we'd see the observed difference in proportions, assuming that the true proportions of the groups are actually the same.
+
+It doesn't have the same normality assumption as the t-test, making it good for small samples where the assumption may not hold.
+
+# Sensivity, Specificity, ROC

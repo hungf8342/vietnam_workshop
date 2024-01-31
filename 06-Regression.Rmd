@@ -1,0 +1,115 @@
+---
+title: "Events"
+subtitle: "Regression"
+author: "Frances Hung"
+date: "10/6/2022"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message=FALSE)
+library(tidyverse)
+library(Gmisc)
+library(Hmisc)
+library(gtsummary)
+library(medicaldata)
+#library(flextable)
+```
+
+Today, we will go over common measures used to describe event occurrence in populations. This includes language for describing:
+
+-   How often events occur (rates, incidence)
+-   How many individuals in the population have experienced an event (proportion, prevalence)
+-   How does a characteristic affects probability of experiencing an event (odds ratio, risk ratio)
+
+This will come in handy later, when we have to interpret regression models. For simplicity, we'll concentrate only on whether or not an event occurs (yes/no). We may briefly mention models for how event rates change over time later (Poisson and negative binomial regression), but this is outside of the scope of this introductory class. 
+
+After this, we will cover basic ways of comparing event rates and incidences between groups differentiated by a characteristic. Some of these concepts (t-tests, correlation) are also applicable to and important for understanding continuous data as well.
+
+## Review: Data Cleaning and Visualization
+
+Since today's lecture is focused on events, let's clean and visualize a dataset that we can use for the remainder of the lecture.
+
+## Linear regression
+
+Linear regression, which makes inferences on the mean of the outcome, is more complex but more robust than the previous tests. One drawback of the tests measured previously is that we cannot account for confounding variables. A confounding variable is a measure other than the one of interest that can influence our outcome.
+
+For example, let's say that we have the following dataset, where x appears to be correlated with y.
+
+But this can be somewhat explained by z.
+
+The solution is to fit a line to the data, where the dependent variables on the right consist of our measure of interest and potential confounders.
+
+In the next section we will go over:
+
+- fitting the model
+- visualizing the model (for univariate analysis)
+- interpreting and tidying the results output
+- model checks
+- predicting outcomes for new data
+
+
+### Fitting in R
+
+To fit a linear regression in R, we use the `lm` function, which takes in an equation and a dataframe at the minimum.
+
+```{r lm, options}
+risk_model <- lm(risk ~ age + pep + psphinc, 
+                 data = indo_rct_day3_clean)
+
+summary(risk_model)
+```
+
+### Visualizing
+
+Just to build intuition, we can visually see what regression is doing in the case of a univariate analysis (where only our measure of interest is on the right hand side of the equation). In ggplot, there is a `geom_line` layer which draws the regression line.
+
+```{r regression-viz, options}
+indo_rct_day3_clean %>%
+  ggplot(aes(x=age, y=risk)) +
+  geom_point() +
+  geom_smooth(method="lm")
+```
+
+Usually, we don't visualize regressions because each dependent variable would add a dimension onto the plot. 
+
+### Interpretation and Tidying Results
+
+To get results from our fit model created from `lm`, we can use the `summary` command. I won't go into detail about interpretation, but each term has two important measures listed: the effect size and p-value. 
+
+```{r results-summary, options}
+summary(risk_model)
+```
+
+The effect size tells us the estimated effect of a one-unit difference (if dependent variable is continuous) or value change (if dependent variable is categorical) on the expected value (mean) of the outcome.
+
+The p-value tells us how sure we are about the estimated effect. 
+
+The summary output doesn't look very nice, so we can put it into nice dataframe form using `tidy`. We can make it look even nicer with the kableExtra package below.
+
+```{r results-kable, options}
+summary(risk_model) %>%
+  tidy() 
+```
+
+### Model Checks
+
+One important thing to do when fitting linear models is perform checks on the assumptions it makes. If these assumptions are false, then the model may produce misleading results.
+
+```{r heteroskedastic-residuals, options}
+par(mfrow = c(2, 2))
+plot(risk_model)
+```
+
+
+
+### Predicting Outcomes
+
+If we want to predict the expected value of the outcome for observations not in the original dataset, we can use the `predict` function.
+
+```{r results-predict, options}
+predict(risk_model, newdata = sample_n(indo_rct_day3_clean, 4))
+```

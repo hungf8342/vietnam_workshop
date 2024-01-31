@@ -2,9 +2,10 @@
 title: "Continuous Variables"
 subtitle: "Measures and Basic Tests"
 author: "Frances Hung"
-date: "10/6/2022"
+date: "`r Sys.Date()`"
 output:
   html_document:
+    df_print: paged
     toc: true
     toc_float: true
 ---
@@ -17,6 +18,7 @@ library(Hmisc)
 library(gtsummary)
 library(broom)
 library(medicaldata)
+library(PASWR2)
 #library(flextable)
 ```
 
@@ -132,11 +134,70 @@ cor(indo_rct_day3_clean$risk, indo_rct_day3_clean$age,
 
 The t-test approximates how likely we'd see the observed difference in means, assuming that the true means of the groups are actually the same. A small p-value means that there is evidence that the true means of the groups are different.
 
-It assumes that if we took many samples from the two group populations, the resulting sample means would be normally distributed (bell-shaped). This usually holds if we have a large enough sample size. (INSERT FIGURE HERE)
+It assumes that if we took many samples from the two group populations, the resulting sample means would be normally distributed (bell-shaped). This usually holds if we have a large enough sample size. 
 
-```{r t-test, options}
-t.test(indo_rct_day3_clean$risk ~ indo_rct_day3_clean$pep)
+There are several variations of t-test, depending on what assumptions we make. Today, we go over the case where the two groups have unknown, different population variances (most common).
+
+We can either supply the raw tidy data to a t-test function, or we can supply the means, standard deviations, and counts of each group sample to a summarized t-test function.
+
+### From Raw Data
+
+```{r raw-t-test, options}
+t.test(indo_rct_day3_clean$risk ~ indo_rct_day3_clean$pep, #alternative hypothesis: mean risk differs by pep status
+       alternative = "two.sided", #two-sided alternative hypothesis
+       mu = 0, #null hypothesis: difference is 0
+       paired = FALSE, #group observations are not paired 
+       var.equal = FALSE, #variances are not equal
+       conf.level = 0.95) #alpha (type-I error) is 0.05
 ```
+
+### From Means and Sample Variances
+
+```{r paswr-t-test, options}
+
+#--- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
+# find mean and SD risk by pep group
+#--- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
+sumStatsPepRisk <- indo_rct_day3_clean %>%
+  group_by(pep) %>%
+  summarise(meanRisk = mean(risk),
+            sdRisk = sd(risk),
+            countRisk = n())
+
+
+#--- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
+# input mean and SD by pep group into summarized t-test
+#--- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
+tsum.test(mean.x = sumStatsPepRisk %>% 
+            filter(pep == "yes") %>%
+            .$meanRisk,
+          s.x = sumStatsPepRisk %>% 
+            filter(pep == "yes") %>%
+            .$sdRisk,
+          n.x = sumStatsPepRisk %>% 
+            filter(pep == "yes") %>%
+            .$countRisk,
+          mean.y = sumStatsPepRisk %>% 
+            filter(pep == "no") %>%
+            .$meanRisk,
+          s.y = sumStatsPepRisk %>% 
+            filter(pep == "no") %>%
+            .$sdRisk,
+          n.y = sumStatsPepRisk %>% 
+            filter(pep == "no") %>%
+            .$countRisk,
+          alternative = "two.sided", #two-sided alternative hypothesis
+          mu = 0, #null hypothesis: difference is 0
+          var.equal = FALSE, #variances are not equal
+          conf.level = 0.95) #alpha (type-I error) is 0.05
+```
+### Changing Parameters
+
+In both the t-test and summarized t-test functions, we can change parameter values to suit our problem of interest:
+
+- alternative: we can specify this to be "less" or "greater" if our alternative hypothesis is one-sided
+- conf.level: if our chosen alpha type-I level is something other than the default 0.05 (conf.level=0.95), we specify here
+- paired: if we want to use a paired t-test, we set this to TRUE
 
 ## Wilcoxon (Non-parametric)
 
@@ -144,83 +205,30 @@ Similarly to the t-test, the chi-squared test approximates how likely we'd see t
 
 It doesn't have the same normality assumption as the t-test, making it good for small samples where the assumption may not hold. However, the t-test is more powerful (has a higher ability to correctly reject the null hypothesis if the alternative is in fact true) than the Wilcoxon under correct normality assumptions. The mean rather than the median is often of more interest to researchers, since it is what is available for interpretation when we do standard regression (our next section).
 
-## Linear regression
-
-Linear regression, which makes inferences on the mean of the outcome, is more complex but more robust than the previous tests. One drawback of the tests measured previously is that we cannot account for confounding variables. A confounding variable is a measure other than the one of interest that can influence our outcome.
-
-For example, let's say that we have the following dataset, where x appears to be correlated with y.
-
-But this can be somewhat explained by z.
-
-The solution is to fit a line to the data, where the dependent variables on the right consist of our measure of interest and potential confounders.
-
-In the next section we will go over:
-
-- fitting the model
-- visualizing the model (for univariate analysis)
-- interpreting and tidying the results output
-- model checks
-- predicting outcomes for new data
-
-
-### Fitting in R
-
-To fit a linear regression in R, we use the `lm` function, which takes in an equation and a dataframe at the minimum.
-
-```{r lm, options}
-risk_model <- lm(risk ~ age + pep + psphinc, 
-                 data = indo_rct_day3_clean)
-
-summary(risk_model)
+```{r wilcoxon, options}
+wilcox.test(indo_rct_day3_clean$risk ~ indo_rct_day3_clean$pep)
 ```
 
-### Visualizing
+### Exercises: 2-Group Comparison Tests
 
-Just to build intuition, we can visually see what regression is doing in the case of a univariate analysis (where only our measure of interest is on the right hand side of the equation). In ggplot, there is a `geom_line` layer which draws the regression line.
+We'll see if mean or median age is different between pep groups.
 
-```{r regression-viz, options}
-indo_rct_day3_clean %>%
-  ggplot(aes(x=age, y=risk)) +
-  geom_point() +
-  geom_smooth(method="lm")
-```
+1. Use `group_by` and `summarise` to find the mean and median age for patients with and without pep.
+2. Use a two-sided t-test to test if mean age differs between patients with and without pep.
+3. Use a one-sided t-test to test if mean age is lower in patients with compared to patients without pep.
 
-Usually, we don't visualize regressions because each dependent variable would add a dimension onto the plot. 
+```{r answers-comparison-tests, options}
+t.test(indo_rct_day3_clean$age ~ indo_rct_day3_clean$pep, #alternative hypothesis: mean risk differs by pep status
+       alternative = "two.sided", #two-sided alternative hypothesis
+       mu = 0, #null hypothesis: difference is 0
+       paired = FALSE, #group observations are not paired 
+       var.equal = FALSE, #variances are not equal
+       conf.level = 0.95) #alpha (type-I error) is 0.05
 
-### Interpretation and Tidying Results
-
-To get results from our fit model created from `lm`, we can use the `summary` command. I won't go into detail about interpretation, but each term has two important measures listed: the effect size and p-value. 
-
-```{r results-summary, options}
-summary(risk_model)
-```
-
-The effect size tells us the estimated effect of a one-unit difference (if dependent variable is continuous) or value change (if dependent variable is categorical) on the expected value (mean) of the outcome.
-
-The p-value tells us how sure we are about the estimated effect. 
-
-The summary output doesn't look very nice, so we can put it into nice dataframe form using `tidy`. We can make it look even nicer with the kableExtra package below.
-
-```{r results-kable, options}
-summary(risk_model) %>%
-  tidy() 
-```
-
-### Model Checks
-
-One important thing to do when fitting linear models is perform checks on the assumptions it makes. If these assumptions are false, then the model may produce misleading results.
-
-```{r heteroskedastic-residuals, options}
-par(mfrow = c(2, 2))
-plot(risk_model)
-```
-
-
-
-### Predicting Outcomes
-
-If we want to predict the expected value of the outcome for observations not in the original dataset, we can use the `predict` function.
-
-```{r results-predict, options}
-predict(risk_model, newdata = sample_n(indo_rct_day3_clean, 4))
+t.test(indo_rct_day3_clean$age ~ indo_rct_day3_clean$pep, #alternative hypothesis: mean risk differs by pep status
+       alternative = "greater", #two-sided alternative hypothesis
+       mu = 0, #null hypothesis: difference is 0
+       paired = FALSE, #group observations are not paired 
+       var.equal = FALSE, #variances are not equal
+       conf.level = 0.95) #alpha (type-I error) is 0.05
 ```

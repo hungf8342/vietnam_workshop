@@ -38,9 +38,9 @@ We will walk through how to start a project in R Studio, using the workshop mate
 
 ![](Figures/blank-rstudio.svg)
 
-3. In the file navigator pop-up, find your unzipped files. Click Ok.
+3. In the file navigator pop-up, navigate to the folder containing your unzipped files. Go inside, name the project, and click Ok.
 
-You should now see 
+You should now see a project open up (with the name at the top right corner of the RStudio screen). Your files should appear in the lower right panel.
 
 
 # RStudio
@@ -236,5 +236,5 @@ There are several resources for R commands. Say you are unsure what the function
 
 ## End of Coding Session
 
-Make sure you save your RMD. 
+Make sure you save your RMD to save your work.
 

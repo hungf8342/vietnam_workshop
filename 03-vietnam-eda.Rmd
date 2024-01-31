@@ -1,25 +1,37 @@
 ---
 title: "Exploratory Analysis"
-subtitle: "Tables, Plots, and Summary Statistics in R"
 author: "Frances Hung"
-date: "10/6/2022"
+date: "`r Sys.Date()`"
 output:
   html_document:
-    toc: true
-    toc_float: true
+    df_print: paged
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+  pdf_document:
+    toc: yes
+    toc_depth: '4'
+  word_document:
+    toc: yes
+    toc_depth: '4'
+subtitle: Tables, Plots, and Summary Statistics in R
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning=FALSE)
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, fig.width = 8, fig.height = 5)
 library(tidyverse)
 library(Gmisc)
 library(Hmisc)
 library(gtsummary)
+library(table1)
 library(medicaldata)
 # library(nhanesA)
 #library(flextable)
 ```
 
+Welcome to the preliminary coding workshops on Quantitative Methods for HIV Researchers (Rishi will send title)! These lectures will serve as code introductions and guides for the in-person portion of the workshop since data analysis and programming will not be covered in the in-person workshops. I will start each of these lectures with a list of packages used and concepts these packages are relevant for.
+
+Today, we will go over creating tables, plots, and summary statistics from tidy data.
 
 # Packages Used Today
 
@@ -36,7 +48,7 @@ library(medicaldata)
     + labs
 - `gtsummary` for tables
 
-Now that we're acquainted with Rstudio and the basic syntax of R, we can briefly talk about exploring data using summary statistics and visualizations. We will use `dplyr` and `ggplot2`, both which are packages included in the tidyverse bundle of packages.
+Now that we're acquainted with Rstudio and the basic syntax of R, we can briefly talk about exploring data using summary statistics, tables, and visualizations. We will use `dplyr` and `ggplot2`, both which are packages included in the tidyverse bundle of packages.
 
 ## Review
 
@@ -48,14 +60,17 @@ First, we take a quick look at it using the `summary` command.
 summary(strep_tb)
 ```
 
-The values for a lot of the variables consist of a number, underscore, description. To avoid redundancy, we remove the number and underscore from those values.
+The values for a lot of the variables consist of a number, underscore, description (e.g. 1\_Good). To avoid redundancy, we remove the number and underscore from those values.
 
 ```{r strep-clean, options}
 strep_tb_clean <- strep_tb %>%
+  # across the five chosen columns
   mutate(across(c(baseline_condition, baseline_temp, 
                 baseline_esr, strep_resistance,
                 radiologic_6m),
+        # remove "_" and whatever comes before it
          ~str_remove(.x, "(.*)_") %>%
+        # and make the variable into a factor
            as.factor()))
 ```
 
@@ -82,19 +97,40 @@ In order to make the variable names look nicer, we can relabel the base datafram
 
 ```{r re-label, options}
 strep_tb_clean %>%
-  # don't include patient ID in table
+  # don't include patient ID and dose_PAS_g in table
   select(-c(patient_id, dose_PAS_g)) %>%
+  # rename all variables by replacing underscores with spaces
   rename_with(function(x) str_replace_all(x,"_", " ") %>%
+                # and making everything title case
                 str_to_title()) %>%
   tbl_summary() %>%
   # allows us to knit tables to Word
   as_flex_table()
 ```
 
-We can give the function more optional parameters to make the table 1 more readable.
+We can give the function more optional parameters to make the table 1 more readable (see documentation). Below, we order the factor levels in each factor variable to make them appear in the correct order.
 
 ```{r add-params, options}
-
+strep_tb_clean %>%
+  # don't include patient ID and dose_PAS_g in table
+  select(-c(patient_id, dose_PAS_g)) %>%
+  # re-level strep_resistance, baseline_temp, baseline_condition, radiologic_6m
+  mutate(strep_resistance = factor(strep_resistance,
+                                   levels = c("0-8", "8-99", "100+")),
+         baseline_temp = factor(baseline_temp,
+                                levels = c("98-98.9F", "99-99.9F",
+                                           "100-100.9F", "100F+")),
+         baseline_condition = factor(baseline_condition,
+                                     levels = c("Poor", "Fair", "Good")),
+         radiologic_6m = factor(radiologic_6m %>% str_to_title(),
+                                levels = c("Change", "Improvement", "Deterioration", "Death"))) %>%
+  # rename all variables by replacing underscores with spaces
+  rename_with(function(x) str_replace_all(x,"_", " ") %>%
+                # and making everything title case
+                str_to_title()) %>%
+  tbl_summary() %>%
+  # allows us to knit tables to Word
+  as_flex_table()
 ```
 
 ## Visualizations
@@ -150,7 +186,17 @@ strep_tb_clean %>%
 ### Exercises: Plots
 
 1. Add data points to the boxplot graph. What improvements could be made to the graph?
-2. Look up geom_jitter and use it instead to add points to the boxplot graph.
+2. Look up `geom_jitter` and use it instead to add points to the boxplot graph.
+3. Look up `geom_bar` and use it to plot a bar graph of strep resistance, colored by whether the patient improved.
+
+```{r geom-bar, options}
+strep_tb_clean %>%
+  mutate(strep_resistance=factor(strep_resistance,
+                                 levels = c("0-8", "8-99", "100+"))) %>%
+  ggplot(aes(x=strep_resistance, fill=improved)) +
+  geom_bar() +
+  labs(x="Strep Resistance", y="Count", fill="Improved")
+```
 
 ## Summary Statistics
 
@@ -193,3 +239,13 @@ strep_tb_clean %>%
   count(baseline_condition)
 ```
 
+
+## Exercises
+
+1. Summarize how many male and female (`gender`) patients are in each treatment arm (`arm`).
+2. Find the median radiological number (`rad_num`) by gender and treatment arm.
+
+```{r summary-stat-ex, options}
+strep_tb_clean %>% count(arm, gender)
+strep_tb_clean %>% group_by(arm, gender) %>% summarise(medRad=median(rad_num))
+```

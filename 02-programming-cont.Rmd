@@ -14,7 +14,8 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-Welcome to the preliminary coding workshops on Quantitative Methods for HIV Researchers! These lectures will serve as code introductions and guides for the in-person portion of the workshop. I will start each of these lectures with a list of packages used and concepts these packages are relevant for.
+Welcome to the preliminary coding workshops on Introductory HIV Data
+Analysis Workshop! These lectures will serve as code introductions and guides for the in-person portion of the workshop. I will start each of these lectures with a list of packages used and concepts these packages are relevant for.
 
 Today, we will continue learning functions in tidyverse.
 

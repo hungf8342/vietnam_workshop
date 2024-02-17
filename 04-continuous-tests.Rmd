@@ -52,32 +52,16 @@ head(indo_rct_day3)
 # the categorical variables are already in factor form, so no need to modify inside summary command
 summary(indo_rct_day3)
 ```
-Notice that all categorical variables have a number, underscore, no/yes for a value. This is redundant information, so we can get rid of the no/yes.
+Notice that all categorical variables have a number, underscore, no/yes for a value. This is redundant information, so we can get rid of the number and underscore.
 
 ```{r clean, options}
 indo_rct_day3_clean <- indo_rct_day3 %>%
   mutate(across(c(pep, psphinc),
-                ~str_remove(.x, "(.*)_")))
+                ~factor(str_remove(.x, "(.*)_"))))
 
 head(indo_rct_day3_clean)
 ```
 
-### Exercises: Data Visualization
-
-1. Recreate the boxplot below.
-```{r indo-rct, options}
-indo_rct_day3_clean %>%
-  ggplot(aes(x=pep, y=risk)) +
-  geom_boxplot()
-```
-
-2. Fit a dotplot with age on the x-axis and risk score on the y-axis.
-
-```{r dotplot, options}
-indo_rct_day3_clean %>%
-  ggplot(aes(x=age, y=risk)) +
-  geom_point()
-```
 
 ## Centrality Measures
 
@@ -89,11 +73,7 @@ The **median** of a continuous variable is the number at the
 
 The **mode** of a continuous variable may not be as meaningful as the other two centrality measures.
 
-
-
-### Exercises: Measures
-
-1. Calculate the mean and median of risk score by pep and psphinc using tidyverse.
+To compare centrality measures by group, we calculate the mean and median of risk score by pep and psphinc using `group_by` and `summarize` from tidyverse.
 
 ```{r centrality-ex, options}
 indo_rct_day3_clean %>%
@@ -106,11 +86,11 @@ indo_rct_day3_clean %>%
 
 We can talk about basic ways of comparing continuous centrality measures among different groups, now that we've defined what centrality and spread measures are. This is our first foray into statistical tests. This workshop is not meant to give statistical background on these tests, so stay tuned for the in-person workshop (or consult with a statistician) before using these tests in research projects.
 
-Below are three different ways of visualizing or testing continuous centrality measure differences among groups.
+Below are three different ways of describing or testing continuous centrality measure differences among groups.
 
 -   Correlation
 -   T-test
--   Wilcoxon
+-   Wilcoxon (here for reference, will not cover)
 
 More sophisticated ways of testing continuous measure differences between groups (like linear regression, adjusting for other variables) will be introduced later.
 
@@ -130,17 +110,19 @@ cor(indo_rct_day3_clean$risk, indo_rct_day3_clean$age,
     method = "spearman")
 ```
 
-## T-test (Parametric)
+## 2-Group Comparisons
+
+### T-test (Parametric)
 
 The t-test approximates how likely we'd see the observed difference in means, assuming that the true means of the groups are actually the same. A small p-value means that there is evidence that the true means of the groups are different.
 
-It assumes that if we took many samples from the two group populations, the resulting sample means would be normally distributed (bell-shaped). This usually holds if we have a large enough sample size. 
+It assumes that if we took many samples from the two group populations, the resulting sample means would be normally distributed (bell-shaped). This usually holds if we have a large enough sample size. It also assumes the samples are randomly sampled and independent from one another.
 
 There are several variations of t-test, depending on what assumptions we make. Today, we go over the case where the two groups have unknown, different population variances (most common).
 
 We can either supply the raw tidy data to a t-test function, or we can supply the means, standard deviations, and counts of each group sample to a summarized t-test function.
 
-### From Raw Data
+#### From Raw Data
 
 ```{r raw-t-test, options}
 t.test(indo_rct_day3_clean$risk ~ indo_rct_day3_clean$pep, #alternative hypothesis: mean risk differs by pep status
@@ -151,7 +133,7 @@ t.test(indo_rct_day3_clean$risk ~ indo_rct_day3_clean$pep, #alternative hypothes
        conf.level = 0.95) #alpha (type-I error) is 0.05
 ```
 
-### From Means and Sample Variances
+#### From Means and Sample Variances
 
 ```{r paswr-t-test, options}
 
@@ -191,7 +173,8 @@ tsum.test(mean.x = sumStatsPepRisk %>%
           var.equal = FALSE, #variances are not equal
           conf.level = 0.95) #alpha (type-I error) is 0.05
 ```
-### Changing Parameters
+
+#### Changing Parameters
 
 In both the t-test and summarized t-test functions, we can change parameter values to suit our problem of interest:
 
@@ -199,17 +182,60 @@ In both the t-test and summarized t-test functions, we can change parameter valu
 - conf.level: if our chosen alpha type-I level is something other than the default 0.05 (conf.level=0.95), we specify here
 - paired: if we want to use a paired t-test, we set this to TRUE
 
-## Wilcoxon (Non-parametric)
+### Wilcoxon Rank Sum (Non-parametric)
+
+This test will not be covered in the in-person workshop and we will not go over it during lecture, but it will be here for reference since it is often used.
 
 Similarly to the t-test, the chi-squared test approximates how likely we'd see the observed difference in proportions, assuming that the true **medians** of the groups are actually the same. A small p-value means that there is evidence that the true medians of the groups are different.
 
-It doesn't have the same normality assumption as the t-test, making it good for small samples where the assumption may not hold. However, the t-test is more powerful (has a higher ability to correctly reject the null hypothesis if the alternative is in fact true) than the Wilcoxon under correct normality assumptions. The mean rather than the median is often of more interest to researchers, since it is what is available for interpretation when we do standard regression (our next section).
+It doesn't have the same normality assumption as the t-test, making it good for small samples where the assumption may not hold. However, the t-test is more powerful (has a higher ability to correctly reject the null hypothesis if the alternative is in fact true) than the Wilcoxon under correct normality assumptions. The mean rather than the median is often of more interest to researchers, since it is what is available for interpretation when we do standard regression.
 
 ```{r wilcoxon, options}
 wilcox.test(indo_rct_day3_clean$risk ~ indo_rct_day3_clean$pep)
 ```
 
-### Exercises: 2-Group Comparison Tests
+## ANOVA: Comparisons of more than 2 groups
+
+The above measures (t-test, Wilcoxon Rank Sum) test if there's evidence that a continuous variable differs between two groups. In order to test if a continuous variable differs between more than 2 groups, we can use ANOVA.
+
+Like the t-test, ANOVA assumes that the continuous values in each group are roughly normally distributed, randomly sampled, and independent.
+
+```{r dataf, options}
+hiv_rna_sim <- data.frame(hospital=c(rep("A", 20), rep("B", 20), rep("C", 20)),
+           treatment=rep(c(rep("trt", 10), rep("control", 10)), 3))
+
+anova_df <- hiv_rna_sim %>%
+  mutate(hospMean = case_when(hospital=="A" ~ 10,
+                              hospital=="B" ~ 12,
+                              hospital=="C" ~ 20),
+         trtEffect = if_else(treatment == "trt", 12, 0)) %>%
+  rowwise() %>%
+  mutate(hiv_rna = hospMean + rnorm(1, 0, 7) + 
+           trtEffect + rnorm(1, 0, 5))
+
+```
+
+### One-way ANOVA
+
+```{r aov, options}
+anova.risk <- aov(hiv_rna ~ hospital,
+    data = anova_df)
+
+summary(anova.risk)
+```
+
+### Two-way ANOVA
+
+```{r aov-2, options}
+anova.risk <- aov(hiv_rna ~ hospital + treatment,
+    data = anova_df)
+
+summary(anova.risk)
+```
+
+
+
+### Exercises
 
 We'll see if mean or median age is different between pep groups.
 

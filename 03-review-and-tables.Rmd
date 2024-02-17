@@ -1,0 +1,298 @@
+---
+title: "Reading In Files/Basic Information and Tables"
+subtitle: "A Review and Application to Summary Statistics/Tables"
+author: "Frances Hung"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Welcome to the preliminary coding workshops on Introductory HIV Data
+Analysis Workshop! These lectures will serve as code introductions and guides for the in-person portion of the workshop. I will start each of these lectures with a list of packages used and concepts these packages are relevant for.
+
+In this RMD, we will review key concepts from the two previous lectures (glossing over most tidyr functions). We will assume that the data we read in is clean, which you can do using `tidyverse` or by cleaning directly in Excel or other editors beforehand. Putting these concepts together, we can simulate the basic process of reading in a clean dataframe.
+
+# Packages Used Today
+
+-   base R (loaded by default and used for any coding in R)
+-   `tidyverse` for data wrangling
+
+# Loading in Packages
+
+TODO: add how to install packages
+
+Recall that in order to use functions that are not included in base R, we need to load in their corresponding libraries. Usually, it's good practice to load in all libraries at the beginning so you can keep track of them and use their functions wherever you'd like. If you try to use a function before loading its library, it will not work.
+
+However, for clarity during this lecture, we'll call the libraries `tidyverse` and `table1` before the first time we need them.
+
+# Reading in Data
+
+Using base R and other libraries, we can read in many types of files (for example, SAS and Stata files with `haven` and Excel with`readxl`). The most common file types that are read in are CSVs. We can use base R to read in a dataset, assigning it to the variable `dataMedEff`.
+
+The dataset we'll be using comes from a simplified dataframe from the following study:
+
+Efficacy and Tolerability of 3 Nonnucleoside Reverse Transcriptase
+Inhibitor-Sparing Antiretroviral Regimens for Treatment-Naive Volunteers
+Infected With HIV-1: A Randomized, Controlled Equivalence Trial
+
+<https://doi.org//10.7326/M14-1084>
+
+```{r read-in, options}
+dataMedEff <- read.csv("Data/data_medEff_Simplified.csv")
+```
+
+In this study, HIV+ patients were randomized into 3 treatment groups. Their HIV RNA levels and medication discontinuation were followed for at least 96 weeks. Below is a description of each variable in the simplified dataset.
+
+- ntisid: NTIS Identification number
+
+- Arm: Treatment group (A=TRV+RTV+ATV, B=TRV+RAL, C=TRV+RTV+DRV)
+
+- age: Age at study enrollment (years)
+- sex: Sex
+- race: Race
+- crcl_bsl: Calculated creatinine clearance (mL/min/1.73m2)
+- hivRNA\_0: HIV-1 RNA (copies/ml) at baseline
+- hivRNA\_24: HIV-1 RNA (copies/ml) at baseline
+- hivRNA\_48: HIV-1 RNA (copies/ml) at baseline
+- hivRNA\_96: HIV-1 RNA (copies/ml) at baseline
+
+Take a look at the dataset by clicking on it in the Environment tab on the right.
+
+# Data Cleaning
+
+First, we load `tidyverse` because we'll use it to clean data.
+
+```{r tidyverse, options}
+library(tidyverse)
+```
+
+As a first data cleaning step, let's change all of our character-type columns into factor-type. Recall from our first lecture that designating a variable as a factor tells R that there are a finite number of values for that variable; in other words, that the variable is a categorical variable.
+
+```{r chars-as-factor, options}
+dataMedEff <- dataMedEff %>%
+  mutate(across(where(is.character), ~as.factor(.x)))
+```
+
+# Basic Information
+
+Using base R functions, we can get basic information about the dataframe.
+
+- What are the dimensions of the dataframe?
+- What variables does the dataframe have?
+- What type is a particular variable in the dataframe?
+
+```{r basic-df-info, options}
+# dimension of dataMedEff
+dim(dataMedEff)
+
+# column names of dataMedEff
+colnames(dataMedEff)
+
+# type of the Arm variable is a factor
+typeof(dataMedEff$Arm)
+
+```
+
+# Wide Datasets
+
+Last lecture, we talked about using pivot\_long and pivot\_wide to change the shape of a dataframe. Whether we want the dataframe to be long or wide depends on what our unit of analysis is and how a particular R function wants us to structure the input data.
+
+Most basic, non-longitudinal dataframes are wide, with each row representing a unique observation. In our case, the dataframe is wide, with each row representing a unique patient.
+
+```{r wide, options}
+head(dataMedEff)
+```
+
+
+# Summary Statistics
+
+### Base R: for A Chosen Column
+
+We can find the summary statistics for a chosen column using base R. Some basic functions include the:
+
+- mean
+- sd (standard deviation)
+- median
+- quantile 
+- min
+- max
+
+In general, each of the above functions needs the vector of numbers of interest as the first input. Let's look at a few examples using the patient-level dataset we've created. 
+
+For the data, let's find the mean and standard deviation of baseline creatinine across all patients.
+
+```{r baseline-cr, options}
+mean(dataMedEff$crcl_bsl)
+sd(dataMedEff$crcl_bsl)
+```
+
+Out of the above base R functions, quantile is the most complicated. Let's look at the documentation using `?quantile`. Then, let's calculate the median and Q1, Q3 for baseline creatinine as well.
+
+```{r baseline-cr-med, options}
+median(dataMedEff$crcl_bsl)
+quantile(dataMedEff$crcl_bsl, c(0.25, 0.75))
+```
+TODO: add `table` for categorical variables
+
+### Summary Function
+
+If you want a concise function for a whole dataset, we can use the `summary` function. Character-type variables do not return informative output, so it's neccesary to change them into factors (as we previously did) before using the function.
+
+```{r summary, options}
+# summary of all dataMedEff variables
+# NOTE: character variables will not have an informative summary
+# which is why we converted them to factors earlier
+summary(dataMedEff)
+```
+
+While we can quickly get basic summary stats from `summary`, we can extrapolate the one-at-a-time process above to more complicated functions and less constrained statistics about individual columns.
+
+For example, you can get any quantile using the `quantile` function, while the `summary` command shows only the 25th and 75th.
+
+
+# Tables
+
+The `summary` command is a convenient way of summarizing dataframe variables, but we often want summaries in a neater and more publishable table form.
+
+We can make nice tables using the `table1` package. Let's load it in.
+
+```{r table1-load, options}
+library(table1)
+```
+
+The `table1` function takes in at minimum two arguments. The first is a formula-type statement that we'll see later when we go over basic regression. Variables on the right-hand side of the `~` will show up in the table. The data argument is set equal to the dataframe we want to summarize.
+
+```{r table-patient, options}
+
+table1(~Arm + race + age + sex +
+         crcl_bsl +
+         hivRNA_0 + hivRNA_24 + hivRNA_48 + hivRNA_96,
+       data = dataMedEff)
+```
+
+You can relabel variables in the table by assigning them labels.
+
+```{r labels-table1, options}
+label(dataMedEff$crcl_bsl) <- "Baseline Creatinine Clearance"
+
+table1(~Arm + race + age + sex +
+         crcl_bsl +
+         hivRNA_0 + hivRNA_24 + hivRNA_48 + hivRNA_96,
+       data = dataMedEff)
+```
+
+We can also stratify the table by a variable's values. Since we have three arms in this study, a natural choice would be to stratify these characteristics by arm to compare them.
+
+In order to stratify by `Arm`, we add it to the equation preceded by a `|` symbol, which is shorthand for we would like to look at the other stated variables **by** `Arm`.
+
+```{r table1-strat, options}
+label(dataMedEff$crcl_bsl) <- "Baseline Creatinine Clearance"
+
+table1(~race + age + sex +
+         crcl_bsl +
+         hivRNA_0 + hivRNA_24 + hivRNA_48 + hivRNA_96 | Arm,
+       data = dataMedEff)
+```
+# Long Datasets
+
+There are two common situations where you'll likely see data in long format, both involving longitudinal data, or data involving multiple collected timepoints per unit of interest. One is when we have longitudinal data that we want to use in a model as a variable or outcome. The other is when we want to create tables or graphs where we stratify or plot the longitudinal variable or outcome.
+
+Currently, the dataMedEff dataset is a longitudinal dataset in wide form. The HIV RNA measurement is taken at four timepoints (0, 24, 48, and 96 weeks), each with their separate column.  
+
+```{r head, options}
+head(dataMedEff)
+```
+
+For more concise summary statistics by timepoint and table making stratified by timepoint, we can turn this into a long dataset, where we have one column containing the week and one column containing the HIV RNA value corresponding to that week and that row's patient. Let's use pivot\_longer to do so. Recall that after piping the dataframe of interest into pivot\_longer, we need to specify which columns to pivot, along with the names for the two new name and value columns.
+
+```{r pivot_longer, options}
+dataMedEffLong <- dataMedEff %>%
+  pivot_longer(cols = contains("hivRNA"),
+               names_to = "week",
+               values_to = "hivRNA")
+
+head(dataMedEffLong, n=10)
+```
+
+Now, notice that we have a single column for week, and each row corresponds to one week's measurements for a patient. A good rule of thumb is that if we see repeated values in a column, for example the ID column, in conjunction with a column that helps identify each row uniquely (in this case, the week column), we are probably looking at a dataset in long format. We will now demonstrate some uses of long format.
+
+
+
+### Grouping by Column Values
+
+We can use tidyverse functions to get grouped summary statistics by week in a more concise way than previously. In the previous wide dataset, we had separate summary outputs for each of the separate columns. 
+
+First, we take in our dataset of interest and group it by a column that we want to stratify by (using `group_by`). Then, we summarize (using `summarize`) over those groups, specifying the column name of the summary, what function we're using to summarize, and what variables we'd like to summarize.
+
+For example, say we want to find the mean and SD of HIV RNA by week.
+
+```{r group-mean, options}
+dataMedEffLong %>%
+  group_by(week) %>%
+  summarize(meanHIVRNA = mean(hivRNA),
+            sdHIVRNA = sd(hivRNA))
+```
+
+
+You can summarize whatever summary statistic you can code up, and we are able to summarize variables by time point more concisely. As a final example, let's add the median baseline creatinine (even though it's a baseline variable that doesn't vary by week) just to show that we can summarize multiple variables.
+
+```{r multiple-sums, options}
+dataMedEffLong %>%
+  group_by(week) %>%
+  summarize(meanHIVRNA = mean(hivRNA),
+            sdHIVRNA = sd(hivRNA),
+            medCreat = median(crcl_bsl))
+```
+
+### Tables
+
+We can create a table that stratifies across timepoints using the long dataset. Recall that before, we used the wide dataset and HIV RNA was summarized in separate entries for each week on the table.
+
+Instead, we can have week summary statistics for the HIV RNA side by side, which is much easier to compare visually. We won't demonstrate it here, but using this timepoint stratification is especially useful for tables where we have multiple variables that change over time.
+
+```{r table-hivRNA, options}
+table1(~hivRNA| week,
+       data = dataMedEffLong)
+```
+
+# Exercises
+
+1. Read in the CSV file from the following path: `Data/data_medEff_Ex.csv`. Name it `dataMedEff_Ex`.
+
+```{r answer-1, options}
+dataMedEff_Ex <- read.csv("Data/data_medEff_Ex.csv")
+```
+
+2. What variables are in this dataset? How do you know this is in wide format?
+
+In addition to some of the original variables we worked with, it has the following additional ones:
+
+- aids\_dx: Prior AIDS diagnosis
+
+- modeT: Mode of HIV transmission
+
+The next variable is the only variable that varies by timepoint:
+
+- CD4: CD4+ cell count, closest to the visit window (cells/mm3)
+
+3. In the current format, find summary statistics for all variables. 
+
+4. Find the 60th quantile for CD4 by each timepoint.
+
+5. Make a table of all variables.
+
+6. Pivot the dataframe so that patient-week is now the unit of observation and name it `dataMedEff_Ex_Long`.
+
+7. Find the 60th quantile for CD4 by each timepoint (using the long dataframe).
+
+8. Make a table of CD4 stratified by timepoint.
+
+9. Bonus: Read in data_effMed.csv and pivot it wider to get the dataframe we read in from data_effMed_Simplified.csv (at the beginning of this RMD).
+

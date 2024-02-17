@@ -18,10 +18,10 @@ knitr::opts_chunk$set(echo = TRUE, warning=FALSE)
 
 ```
 
-Welcome to the preliminary coding workshops on Introductory HIV Data
+Welcome to the preliminary coding workshops for the Introductory HIV Data
 Analysis Workshop! These lectures will serve as code introductions and
 guides for the in-person portion of the workshop since data analysis and
-programming will not be covered in the in-person workshops. I will start
+programming will not be covered in the in-person sessions. I will start
 each of these lectures with a list of packages used and concepts these
 packages are relevant for.
 
@@ -57,7 +57,7 @@ folder](https://duke.box.com/s/psv9gvjd3p6pec3z0vztc8n3yxqiowq6).
 ![](Figures/blank-rstudio.svg)
 
 3.  In the file navigator pop-up, navigate to the folder containing your
-    unzipped files. Go inside, name the project, and click Ok.
+    unzipped files. Go inside, name the project differently if you'd like, and click Ok.
 
 You should now see a project open up (with the name at the top right
 corner of the RStudio screen). Your files should appear in the lower
@@ -81,7 +81,7 @@ can either work on the DCC or on a local version of RStudio.
 
 -   Open Code Files: we will edit scripts and RMarkdown files here.
 -   Environment: objects (i.e. dataframes) that we create will show up
-    here. There is also a Git tab for easy version control.
+    here. There is also a Git tab for easy version control (we will not cover Git and Github in this workshop, but know they're options).
 -   File System Navigation: we use this like a normal file system
     navigator.
 -   Console: for running interactive code; doesn't save any code input
@@ -102,6 +102,7 @@ subsections. We can make bullet points as follows:
 -   press enter
 -   and make sure you have a space between the dash and your bullet
     point content
+-   another bullet point
 
 Code goes in special sections called chunks, and we can format plain
 text using markdown commands or the visual tab. We can even put in-line
@@ -109,6 +110,7 @@ code in plain text. For example, today is `r Sys.Date()`.
 
 The shortcut on windows for a code chunk is "r - Shift -Tab". In the
 below code chunks, we write some code and R evaluates and prints output.
+
 
 ```{r division}
 8/4
@@ -150,6 +152,8 @@ a <- (5+3)/2
 df <- data.frame(name=c("Participant 1", "Participant 2", "Participant 3", "Participant 4", "Participant 5", "Participant 6"),
                  arm = c("A", "B", "B", "B", "A", "A"),
                  viralload = c(0.1, 1.5, 0.6, 2, 0.4, 0.5))
+
+eye_color <- factor("green", levels=c("blue", "green", "brown"))
 ```
 
 There are different types of variables; we've already seen a numeric
@@ -177,9 +181,19 @@ structures) can be created from these basic types:
 
 -   *vector* <br> A one-dimensional array with elements of one atomic
     type (a 1xn matrix).
+    
+    ```{r vector, options}
+    a <- c(1, 2)
+    b <- c("green", "blue", "brown")
+    ```
 
 -   *list* <br> Like a vector, but elements can be *anything*
     (combination of types is allowed), even other lists.
+    
+    ```{r list, options}
+    c <- list("green", 1)
+    d <- list(c(1,2), c("apple", "orange"))
+    ```
 
 -   *dataframe* <br> A 2-dimensional array that allows columns to be
     different types. All columns must have the same length <br><br>
@@ -216,7 +230,8 @@ to be.
     first vector.)
 
 ```{r exVec, options}
-
+evenNums <- seq(2, 20, by=2)
+firstTenNums <- 1:10
 ```
 
 3.  **Lists** Create a list of length 2 containing the two above
@@ -224,7 +239,9 @@ to be.
     concatenated sequences.
 
 ```{r exList, options}
-
+# the below two things are structurally different though they contain the same numbers
+listofNums <- list(evenNums, firstTenNums)
+vectorofNums <- c(evenNums, firstTenNums)
 ```
 
 4.  **Dataframes** Create a dataframe with 5 rows and 3 columns. The
@@ -331,7 +348,16 @@ following are valid ways of getting help:
     examples to see what it does.
 2.  From the lwhiv, use `filter` to keep only observations with from the
     year 2015.
+    
+```{r tidyverse-2, options}
+filter(lwhiv, Year==2015)
+```
+
 3.  Save this dataset to the variable name `lwhiv2015`.
+
+```{r tidyverse-ex3, options}
+lwhiv2015 <- filter(lwhiv, Year==2015)
+```
 
 ## End of Coding Session
 

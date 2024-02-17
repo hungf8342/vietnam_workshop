@@ -15,6 +15,8 @@ library(tidyverse)
 library(Gmisc)
 library(Hmisc)
 library(gtsummary)
+library(epitools)
+library(epiR)
 library(medicaldata)
 #library(flextable)
 ```
@@ -49,16 +51,25 @@ Incidence rate over a defined time period = (Number of new cases) / (Population 
 
 Prevalence = (Number of existing cases) / (Total population)
 
-Say a city with fixed population 183000 has 26 new TB cases between January and June 2021. In June 2021, the number of active TB cases is 264. We can calculate the incidence of TB between January and June, as well as the prevalence of active TB in June based on this information.
+The below sample is from the `epitools` package. Researchers conducted a case-control study assessing whether exposure to tap water is associated with crytosporidiosis among AIDs patients in San Francisco. There are three levels of tap water exposure. 
+
+```{r tap-water, options}
+tapw <- c("Lowest", "Intermediate", "Highest")
+outc <- c("Case", "Control")	
+dat <- matrix(c(2, 29, 35, 64, 12, 6),3,2,byrow=TRUE)
+dimnames(dat) <- list("Tap water exposure" = tapw, "Outcome" = outc)
+```
+
+We can use `epi.prev` to calculate prevalence at each tap water exposure level with standard Wilson confidence intervals. The estimates are interpreted as outcomes per 100 patients.
 
 ```{r}
-city.pop.march.2021 <- 183000
-tb.cases.new.jan.june.2021 <- 26
-tb.cases.active.june.2021 <- 264
-tb.cases.active.before.jan.2021 <- tb.cases.active.june.2021-tb.cases.new.jan.june.2021
+prevObj <- epi.prev(pos = dat[,"Case"], 
+         tested = dat[,"Case"] + dat[,"Control"],
+         se = c(1,1,1),
+         sp = c(1,1,1),
+         units = 100)
 
-incidence.jan.june <- tb.cases.new.jan.june.2021/(city.pop.march.2021-tb.cases.active.before.jan.2021)
-prevalence.june.2021 <- tb.cases.active.june.2021/city.pop.march.2021
+prevObj$ap
 ```
 
 ## Relative Risk and Odds Ratio
@@ -67,16 +78,22 @@ prevalence.june.2021 <- tb.cases.active.june.2021/city.pop.march.2021
 
 **Relative Risk**: (Probability of an event among subjects with risk factor)/(Probability of an event among subjects without risk factor)
 
-The objective of a prospective study by Stenestrand et al. (Daniel& Cross, 2013) was to compare the mortality rate following an acute myocardial infarction (AMI) among subjects receiving early revascularization to the mortality rate among subjects receiving conservative treatments. Among 2554 patients receiving revascularization within 14 days of AMI, 84 died in the year following the AMI. In the conservative treatment group (risk factor present), 1751 of 19,358 patients died within a year of AMI.
+We can calculate the relative risk of a patient with highest tap water exposure getting crytosporadiosis compared to a patient with lowest tap water exposure.
+
 
 ```{r RR, options}
-revasc <- 2554
-revasc.died <- 84
-conservative <- 19385
-conservative.died <- 1751
+highest <- 18
+highest.case <- 12
+lowest <- 31
+lowest.case <- 2
+
+# calculating RR by hand
+RR.case <- (highest.case/highest)/(lowest.case/lowest)
 
 
-RR.death <- (conservative.died/conservative)/(revasc.died/revasc)
+# for tap water highest vs. lowest exposure
+epi.2by2(dat[c(3,1),], # reorganizing so first row is highest tap water exposure (risk factor)
+         method = "cohort.count")
 ```
 
 **Odds**: (Probability of experiencing event)/(Probability of not experiencing event)
@@ -84,41 +101,78 @@ RR.death <- (conservative.died/conservative)/(revasc.died/revasc)
 **Odds Ratio**: (Odds of event among subjects with risk factor)/(Odds of event among subjects without risk factor)
 
 ```{r OR, options}
+highest.odds <- highest.case/(highest-highest.case)
+lowest.odds <- lowest.case/(lowest-lowest.case)
 
+highest.odds/lowest.odds
+
+# for tap water highest vs. lowest exposure
+epi.2by2(dat[c(3,1),], # reorganizing so first row is highest tap water exposure (risk factor)
+         method = "cohort.count")
 ```
 
 ### Exercises: Measures
 
 TODO: from a tidy dataset, create the 2x2 table and calculate incidence, rate, RR and OR.
 
-## Group comparisons of events
+# Group comparisons of events
 
 We can talk about basic ways of comparing event rates and proportions among different groups, now that we've defined what rates and proportions are. This is our first foray into statistical tests. This workshop is not meant to give statistical background on these tests, so stay tuned for the in-person workshop (or consult with a statistician) before using these tests in research projects.
 
 Below are three different ways of visualizing or testing proportion differences among groups.
 
 -   Correlation
--   T-test
+-   2-proportion z-test
 -   Chi-square
 
 More sophisticated ways of testing event rate differences between groups (like logistic regression, adjusting for other variables) will be introduced later.
 
-## Correlation
+### Correlation
 
 As discussed previously, correlation is a rough measure of how associated two variables are. The Pearson correlation we used previously for continuous variables makes the assumption of normality and linear relationship between variables, which does not apply for events (yes/no).
 
 Instead, we must use either Spearman or Kendall's Tau.
 
-## T-test (Parametric)
+### 2-proportion Z-Test (Parametric)
 
-The t-test approximates how likely we'd see the observed difference in proportions, assuming that the true proportions of the groups are actually the same.
+The 2-proportion z-test approximates how likely we'd see the observed difference in proportions, assuming that the true proportions of the groups are actually the same.
 
 It assumes that if we took many samples from the two group populations, the resulting mean proportion would be normally distributed (bell-shaped). This usually holds if we have a large enough sample size.
 
-## Chi-square (Non-parametric)
+### Chi-square (Non-parametric)
 
-Like the t-test, the chi-squared test approximates how likely we'd see the observed difference in proportions, assuming that the true proportions of the groups are actually the same.
+Like the 2-proportion z-test, the chi-squared test approximates how likely we'd see the observed difference in proportions, assuming that the true proportions of the groups are actually the same.
 
-It doesn't have the same normality assumption as the t-test, making it good for small samples where the assumption may not hold.
+It doesn't have the same normality assumption as the z-test, making it good for small samples where the assumption may not hold.
+
+```{r chisq, options}
+#chi
+```
 
 # Sensivity, Specificity, ROC
+
+One specialized application of categorical variables is analyzing the effectiveness of a diagnostic test for a disease. A clinical example would be analyzing HIV positivity in deceased people in Kenya with a rapid antigen/antibody test called OraQuick.
+
+Key predictive measures include:
+
+- sensitivity
+- specificity
+- PPV
+- NPV
+- LR+
+- LR-
+
+The `epi.tests` function returns point estimates and confidence intervals for all of the above measures.
+
+```{r pred-vals, options}
+true.pos <- 25
+true.neg <- 102
+false.neg <- 2
+false.pos <- 3
+
+epi.tests(dat = c(true.pos, false.pos, false.neg, true.neg),
+          method = "wilson")
+```
+
+# Bibliography 
+Opollo, Valarie PhDa; Nyakeriga, Emmanuel MScb; Kingwara, Leonard MScc; Sila, Alex BScb; Oguta, Macxine BSca; Oyaro, Boaz BSca; Onyango, Dickens MBChBd,e,f; Mboya, Frankline O. MScg; Waruru, Anthony PhDg; Musingila, Paul BScg; Mwangome, Mary MBChBb; Nyagah, Lilly M. MBChBc; Ngugi, Catherine MBChBc; Sava, Solomon MBChBc; Waruiru, Wanjiru MBChBb; Young, Peter W. MBChBg; Junghae, Muthoni PhDg. Evaluation of the Performance of OraQuick Rapid HIV-1/2 Test Among Decedents in Kisumu, Kenya. JAIDS Journal of Acquired Immune Deficiency Syndromes 89(3):p 282-287, March 1, 2022. | DOI: 10.1097/QAI.0000000000002857 

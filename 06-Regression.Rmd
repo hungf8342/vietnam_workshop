@@ -1,10 +1,11 @@
 ---
-title: "Events"
-subtitle: "Regression"
+title: "Regression and Survival"
+subtitle: "A Brief Overview"
 author: "Frances Hung"
-date: "10/6/2022"
+date: "`r Sys.Date()`"
 output:
   html_document:
+    df_print: paged
     toc: true
     toc_float: true
 ---
@@ -12,26 +13,48 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message=FALSE)
 library(tidyverse)
+library(broom)
 library(Gmisc)
 library(Hmisc)
 library(gtsummary)
 library(medicaldata)
+library(survival)
+library(survminer)
+library(kableExtra)
 #library(flextable)
 ```
 
-Today, we will go over common measures used to describe event occurrence in populations. This includes language for describing:
+Today, we will go over a very brief overview on regression models and survival models. So far, we've focused on univariate (taking into account a single variable) comparisons. For example, in a t-test, we look only at whether a mean outcome differs between two groups.
 
--   How often events occur (rates, incidence)
--   How many individuals in the population have experienced an event (proportion, prevalence)
--   How does a characteristic affects probability of experiencing an event (odds ratio, risk ratio)
+Regression models allow us to take into account multiple variables when modeling outcomes. This is especially important in analyzing observational data, where main groups of interest may have different characteristics that need to be accounted for.
 
-This will come in handy later, when we have to interpret regression models. For simplicity, we'll concentrate only on whether or not an event occurs (yes/no). We may briefly mention models for how event rates change over time later (Poisson and negative binomial regression), but this is outside of the scope of this introductory class. 
+We may briefly mention models for how event rates change over time later (Poisson and negative binomial regression), but this is outside of the scope of this introductory class. 
 
-After this, we will cover basic ways of comparing event rates and incidences between groups differentiated by a characteristic. Some of these concepts (t-tests, correlation) are also applicable to and important for understanding continuous data as well.
 
-## Review: Data Cleaning and Visualization
+## Review: Univariate T-Test
 
-Since today's lecture is focused on events, let's clean and visualize a dataset that we can use for the remainder of the lecture.
+We will start today's lecture with linear regression, so we will first go through a review of the t-test since both methods model mean continuous outcomes.
+
+Recall the previous dataset we used to run a t-test: data from a randomized control trial (RCT) on using indomethacin for prevention of post-ERCP pancreatitis. 
+
+```{r data, options}
+indo_rct_day3 <- indo_rct %>%
+  select(risk, age, pep, psphinc)
+
+indo_rct_day3_clean <- indo_rct_day3 %>%
+  mutate(across(c(pep, psphinc),
+                ~str_remove(.x, "(.*)_")))
+```
+
+
+```{r raw-t-test, options}
+t.test(indo_rct_day3_clean$risk ~ indo_rct_day3_clean$pep, #alternative hypothesis: mean risk differs by pep status
+       alternative = "two.sided", #two-sided alternative hypothesis
+       mu = 0, #null hypothesis: difference is 0
+       paired = FALSE, #group observations are not paired 
+       var.equal = FALSE, #variances are not equal
+       conf.level = 0.95) #alpha (type-I error) is 0.05
+```
 
 ## Linear regression
 
@@ -86,12 +109,14 @@ summary(risk_model)
 
 The effect size tells us the estimated effect of a one-unit difference (if dependent variable is continuous) or value change (if dependent variable is categorical) on the expected value (mean) of the outcome.
 
+For example, a one-year increase in age is estimated to decrease risk score by about 0.01, and a previous post-ERCP pancreatitis (PEP) is estimated to increase risk score by about 0.854.
+
 The p-value tells us how sure we are about the estimated effect. 
 
 The summary output doesn't look very nice, so we can put it into nice dataframe form using `tidy`. We can make it look even nicer with the kableExtra package below.
 
 ```{r results-kable, options}
-summary(risk_model) %>%
+risk_model %>%
   tidy() 
 ```
 
@@ -112,4 +137,93 @@ If we want to predict the expected value of the outcome for observations not in 
 
 ```{r results-predict, options}
 predict(risk_model, newdata = sample_n(indo_rct_day3_clean, 4))
+```
+
+# Logistic Regression
+
+If our outcome is binary (yes/no) and can be coded as 1/0, we cannot use ordinary linear regression, which is meant only for continuous outcomes. 
+
+For example, say we're interested in modelling post-ERCP pancreatitis (`outcome`). We first clean up the dataset with the outcome and chosen covariates, which consist of the treatment arm (placebo vs. indomethacin) and known risk factors associated with post-ERCP pancreatitis.
+
+```{r logistic-data, options}
+outcomeDF <- indo_rct %>%
+  select(outcome, age, rx, sodsom, paninj, difcan, psphinc, recpanc, pep, sod) %>%
+  mutate(across(where(is.factor), 
+                ~ str_remove(.x, "_.*") %>%
+                  as.numeric))
+```
+
+### Fitting in R
+
+We use another base R function, `glm`, which stands for generalized linear model. Like in the normal linear model, we specify the equation and data. We also have an additional parameter `family`, which specifies what sort of generalized linear model we'll be using. The correct family for logistic regression is binomial. We will not go over additional families of linear models in this series.
+
+```{r logistic-fit, options}
+outcomeMod <- glm(outcome ~ age + rx + 
+                    sodsom + paninj + difcan +
+                    psphinc + recpanc + pep + sod, 
+                  data = outcomeDF,
+                  family = "binomial")
+```
+
+Like in regular linear regression, we can display the results using the `summary` command and tidy up the table.
+
+```{r logistic-results, options}
+outcomeMod %>%
+  tidy() %>%
+  kbl() %>%
+  kable_classic_2()
+```
+
+We can also predict binary outcomes using new data points. Below, we predict the probability of a patient with mean values of all covariates getting post-ERCP pancreatitis.  
+
+```{r logistic-predict, options}
+predict(outcomeMod,
+        newdata = colMeans(outcomeDF %>%
+                             select(age, rx, sodsom, 
+                                    paninj, difcan, psphinc,
+                                    recpanc, pep, sod)) %>%
+           t() %>% as.data.frame(),
+        type = "response")
+```
+
+# Survival
+
+Some research questions have to do with times to first events. Survival models let us find covariates associated with higher hazard of an event (higher probability of experiencing the event for the first time). It allows us to take into account censoring (if a patient is lost to follow up during the study or if the study ends without the patient experiencing an event).
+
+We use a simple dataset `aml` from the `survival` package to illustrate different models we can fit with survival data. This dataset tracks survival of patients with Acute Myelogenous Leukemia, who were either given maintenance chemotherapy or not. The `time` column is either the time of death (if `status` is 1) or time of censoring (if `status` is 0).
+
+### Visualization
+
+To do work in survival, the model must have for each patient a time and an indicator of whether the time is of an event or censoring. In the `survival` package, we combine these two pieces (usually two dataframe columns) into a `Surv` object.
+
+We can then use this `Surv` object like an outcome. In the below code chunk, we fit a Kaplan-Meier curve, stratified by whether patients get maintenance or not. We then plot the probability of survival at various time points using the Kaplan-Meier curve.
+
+
+```{r survfit, options}
+fit <- survfit(Surv(time=time, event=status) ~ x,
+               data=aml)
+
+ggsurvplot(fit) +
+  labs(color="Maintenance",
+       title = "Survival Probability of AML Patients")
+```
+
+### Cox Proportional Hazards Model
+
+Kaplan-Meier curves are used only to describe survival data. For a more formal model from which we can calculate estimated effects of covariates on survival, we can fit a regression model.
+
+In order to use a regression model here, we make the assumption that hazard functions between any two covariate groups are proportional over time. In simple terms, we'd like to see that when we plot survival probabilities stratified by any two group values (as we did using Kaplan-Meier curves), the space between curves doesn't drastically change over time. We can then use a Cox Proportional Hazards model to make statements about, in our example, associations of maintenance chemotherapy with the hazard of death.
+
+```{r cox-ph, options}
+coxModel <- coxph(Surv(time, status) ~ x,
+      data=aml)
+
+summary(coxModel)
+```
+### Checking Proportional Hazards Assumption
+
+We can check the proportional hazards assumption using `cox.zph` from the `survival` library. Since the p-values for this test are not significant, we can conclude that there is no evidence that the proportional hazards assumption is violated.
+
+```{r test-ph, options}
+cox.zph(coxModel)
 ```

@@ -207,7 +207,7 @@ hiv_rna_sim <- data.frame(hospital=c(rep("A", 20), rep("B", 20), rep("C", 20)),
 anova_df <- hiv_rna_sim %>%
   mutate(hospMean = case_when(hospital=="A" ~ 10,
                               hospital=="B" ~ 12,
-                              hospital=="C" ~ 20),
+                              hospital=="C" ~ 24),
          trtEffect = if_else(treatment == "trt", 12, 0)) %>%
   rowwise() %>%
   mutate(hiv_rna = hospMean + rnorm(1, 0, 7) + 
@@ -217,14 +217,43 @@ anova_df <- hiv_rna_sim %>%
 
 ### One-way ANOVA
 
+To run one-way ANOVA (whether the continuous quantity differs by one factor), use the `aov` command. The `aov` command takes in two arguments. The first is a formula-type object, with the dependent continuous variable on the left and the independent categorical variable on the right of the `~`. The second is the tidy dataset.
+
+An equivalent way of using the command is omitting the data argument and using vectors in the first argument (see below, commented out).
+
+To ensure that ANOVA treats the independent variable as a categorical variable, we designate all character variables as factors either in the formula or before running, in the dataset.
+
 ```{r aov, options}
-anova.risk <- aov(hiv_rna ~ hospital,
+anova.risk <- aov(hiv_rna ~ factor(hospital),
     data = anova_df)
 
+# equivalent
+# anova.risk <- aov(anova_df$hiv_rna ~ factor(anova_df$hospital))
+
+```
+
+To see results, we use the `summary` command. The key value to look at here is the `Pr(>F)` column; if it is less than our chosen type-I error (in most cases, 0.05), then there is evidence that at least one pair of groups has differing continuous variable means. 
+
+```{r summary-aov, options}
 summary(anova.risk)
 ```
 
+In this example, the F-value is less than 0.05, so we conclude that there is evidence that at least one hospital has different mean HIV RNA measurements than another.
+
+### Tukey HSD
+
+In order to determine which hospitals have different mean HIV RNA measurements, we need to use an additional test, accounting for multiple comparisons between pairs of groups.
+
+We can use the Tukey HSD test. The `TukeyHSD` command takes in one argument: the anova fit object that we want to run the test on.
+
+```{r tukey, options}
+TukeyHSD(anova.risk)
+```
+The `p adj` column indicates the p-values adjusted for multiple comparisons for each pair of hospitals. Looking for adjusted p-values less than 0.05, we can see that hospital C has significantly different means from hospitals A and B. 
+
 ### Two-way ANOVA
+
+We can account for an additional variable in ANOVA via two-way ANOVA. We can add the `treatment` variable to the formula argument in `aov`.
 
 ```{r aov-2, options}
 anova.risk <- aov(hiv_rna ~ hospital + treatment,
@@ -233,15 +262,29 @@ anova.risk <- aov(hiv_rna ~ hospital + treatment,
 summary(anova.risk)
 ```
 
+The summary of our model fit tells us there are differences in mean HIV RNA between treatments and at least one pair of hospitals.
 
+We can use Tukey HSD as previously demonstrated for more information on which hospitals differ in mean HIV RNA.
 
-### Exercises
+### Other Extensions
+
+More complex ANOVA models can be fit by changing the formula argument in `aov`. For repeated measures ANOVA, for instance, we are often interested in looking at differences across different times (each subject has observations at these times). Let's say we have a dataframe with columns `subject`, `timepoint`, and `hiv_rna`, tracking RNA levels at various times for each subject. To compare RNA levels across time, a starting ANOVA model formula would be something like
+
+$$hiv\_rna \sim factor(timepoint)$$
+
+To account for additional "noise" added by each subject for each timepoint, we add an error term `Error(subject/timepoint)`.
+
+$$hiv\_rna \sim factor(timepoint) + Error(subject/timepoint)$$
+
+# Exercises
 
 We'll see if mean or median age is different between pep groups.
 
 1. Use `group_by` and `summarise` to find the mean and median age for patients with and without pep.
 2. Use a two-sided t-test to test if mean age differs between patients with and without pep.
 3. Use a one-sided t-test to test if mean age is lower in patients with compared to patients without pep.
+4. Use two-way ANOVA to test if mean age differs in patients with/without pep and patients with/without psphinc. Interpret the results.
+5. Look up how to add interaction effects into the formula argument for `aov`. Add an interaction between pep and psphinc to the two-way ANOVA model. Use TukeyHSD to help interpretation.
 
 ```{r answers-comparison-tests, options}
 t.test(indo_rct_day3_clean$age ~ indo_rct_day3_clean$pep, #alternative hypothesis: mean risk differs by pep status
@@ -257,4 +300,13 @@ t.test(indo_rct_day3_clean$age ~ indo_rct_day3_clean$pep, #alternative hypothesi
        paired = FALSE, #group observations are not paired 
        var.equal = FALSE, #variances are not equal
        conf.level = 0.95) #alpha (type-I error) is 0.05
+
+anova.age <- aov(age ~ pep + psphinc,
+    data = indo_rct_day3_clean)
+summary(anova.age)
+
+anova.age.interact <- aov(age ~ pep + psphinc + pep:psphinc,
+    data = indo_rct_day3_clean)
+summary(anova.age.interact)
+TukeyHSD(anova.age.interact)
 ```

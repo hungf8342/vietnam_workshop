@@ -72,7 +72,7 @@ Linear regression, which makes inferences on the mean of the outcome, is more co
 
 For example, let's say that we're interested in studying the association between smoking and lung cancer. Older people are more likely to smoke, and they are also more likely to have cancer in general. If we don't account for age, we may think there's a stronger association between smoking and lung cancer than there actually is.
 
-In linear regression, we fit a line to the data, where the dependent variables on the right-hand side of the equation consist of our measure of interest and potential confounders. You will notice that regression looks quite similar to ANOVA, except we can now include continuous variables as dependent variables.
+In linear regression, we fit a line to the data, where the independent variables on the right-hand side of the equation consist of our measure of interest and potential confounders. You will notice that regression looks quite similar to ANOVA, except we can now include continuous variables as independent variables.
 
 In the next section on linear regression, we will go over:
 
@@ -107,7 +107,7 @@ indo_rct_day3_clean %>%
   geom_smooth(method="lm")
 ```
 
-Usually, we don't visualize regressions because each dependent variable would add a dimension onto the plot. 
+Usually, we don't visualize regressions because each independent variable would add a dimension onto the plot. 
 
 ## Interpretation and Tidying Results
 
@@ -117,7 +117,7 @@ To get results from our fit model created from `lm`, we can use the `summary` co
 summary(risk_model)
 ```
 
-The effect size tells us the estimated effect of a one-unit difference (if dependent variable is continuous) or value change (if dependent variable is categorical) on the expected value (mean) of the outcome.
+The effect size tells us the estimated effect of a one-unit difference (if independent variable is continuous) or value change (if independent variable is categorical) on the expected value (mean) of the outcome.
 
 $$ risk\ score = 2.099 -0.01 \times age + 0.85 \times I(pep=yes) + 1.05 \times I(psphinc=yes)$$ 
 
@@ -250,6 +250,7 @@ coxModel <- coxph(Surv(time, status) ~ x,
 
 summary(coxModel)
 ```
+
 ### Checking Proportional Hazards Assumption
 
 We can check the proportional hazards assumption using `cox.zph` from the `survival` library. Since the p-values for this test are not significant, we can conclude that there is no evidence that the proportional hazards assumption is violated.

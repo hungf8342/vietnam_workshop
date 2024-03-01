@@ -2,38 +2,49 @@
 title: "Events"
 subtitle: "Measures and Basic Tests"
 author: "Frances Hung"
-date: "10/6/2022"
+date: "`r Sys.Date()`"
 output:
   html_document:
+    df_print: paged
     toc: true
     toc_float: true
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message=FALSE)
-library(tidyverse)
-library(Gmisc)
-library(Hmisc)
-library(gtsummary)
-library(epitools)
-library(epiR)
-library(medicaldata)
-#library(flextable)
 ```
 
 Today, we will go over common measures used to describe event occurrence in populations. This includes language for describing:
 
 -   How often events occur (rates, incidence)
 -   How many individuals in the population have experienced an event (proportion, prevalence)
--   How does a characteristic affects probability of experiencing an event (odds ratio, risk ratio)
+-   How a characteristic affects probability of experiencing an event (odds ratio, risk ratio)
 
-This will come in handy later, when we have to interpret regression models. For simplicity, we'll concentrate only on whether or not an event occurs (yes/no). We may briefly mention models for how event rates change over time later (Poisson and negative binomial regression), but this is outside of the scope of this introductory class. 
+These quantities are used in tests we'll be going today, and are used for interpreting regression models with categorical outcomes (more on this later). For simplicity, we'll concentrate only on describing whether or not an event occurs (yes/no). Modeling event counts over time is outside of the scope of this introductory class. 
 
-After this, we will cover basic ways of comparing event rates and incidences between groups differentiated by a characteristic. Some of these concepts (t-tests, correlation) are also applicable to and important for understanding continuous data as well.
+After this, we will cover basic ways of comparing event rates and incidences between groups differentiated by a characteristic. This includes tests like:
 
-## Review: Data Cleaning and Visualization
+- Chi-square
+- 2-proportion Z-test
 
-Since today's lecture is focused on events, let's clean and visualize a dataset that we can use for the remainder of the lecture.
+Finally, we will go over sensitivity, specificity, and ROC. These measures allow us to quantify the effectiveness of a diagnostic test or score as compared to a gold standard. I will briefly introduce a function for calculating sample size needed to effectively estimate sensitivity or specificity.
+
+# Packages Used Today
+
+-   base R (loaded by default and used for any coding in R)
+-   `tidyverse` for data wrangling
+- `epiR` for computing event measures like prevalence, odds ratios and risk ratios, and predictive measures
+- `epitools` for calculating sample size for diagnostic tests
+- `ROCit` for ROC objects and plots
+- `cutpointr` to find optimal cutoff points for ROCs
+
+```{r libs, options}
+library(tidyverse)
+library(epitools)
+library(epiR)
+library(ROCit)
+library(cutpointr)
+```
 
 ## Rates, Proportions, Incidence and prevalence
 
@@ -51,116 +62,162 @@ Incidence rate over a defined time period = (Number of new cases) / (Population 
 
 Prevalence = (Number of existing cases) / (Total population)
 
-The below sample is from the `epitools` package. Researchers conducted a case-control study assessing whether exposure to tap water is associated with crytosporidiosis among AIDs patients in San Francisco. There are three levels of tap water exposure. 
+The below sample is from the `epiR` package. Researchers conducted a case-control study assessing whether exposure to tap water is associated with crytosporidiosis among AIDs patients in San Francisco. 
+
+Looking at a registry of AIDs patients in San Francisco, researchers identified 49 patients with crytosporidiosis and 99 patients without. They collected information on all patients about whether their exposure to tap water was low, intermediate, or high. 
+
+Below is the breakdown of tap water exposure between case and control groups.
 
 ```{r tap-water, options}
 tapw <- c("Lowest", "Intermediate", "Highest")
 outc <- c("Case", "Control")	
 dat <- matrix(c(2, 29, 35, 64, 12, 6),3,2,byrow=TRUE)
 dimnames(dat) <- list("Tap water exposure" = tapw, "Outcome" = outc)
+
+dat
+```
+
+```{r vis-tap-water, echo=FALSE}
+dat %>% as.data.frame() %>%
+  rownames_to_column(var="Tap.Water.Level") %>%
+  pivot_longer(-Tap.Water.Level, names_to = "Cryto",
+               values_to = "Counts") %>%
+  ggplot(aes(x=Tap.Water.Level, y=Counts, fill = Cryto)) +
+  geom_col(position = "dodge") +
+  labs(x="Tap Water Level", fill = "Cryto Status",
+       title = "Whether Patients have Crytosporidiosis",
+       subtitle = "by Tap Water Exposure Level")
 ```
 
 We can use `epi.prev` to calculate prevalence at each tap water exposure level with standard Wilson confidence intervals. The estimates are interpreted as outcomes per 100 patients.
 
+The `epi.prev` function in part tries to estimate true prevalence, which is dependent on the sensitivity and specificity of the grouping for disease. We're only interested in the `ap` (apparent prevalence) element of the returned variable, so we can designate the crytosporadiosis diagnoses as 100% accurate (specificity is 1 and sensitivity is 1). 
+
+
 ```{r}
-prevObj <- epi.prev(pos = dat[,"Case"], 
-         tested = dat[,"Case"] + dat[,"Control"],
-         se = c(1,1,1),
-         sp = c(1,1,1),
-         units = 100)
+prevObj <- epi.prev(pos = dat[,"Case"],  # number of cases
+         tested = dat[,"Case"] + dat[,"Control"], # number of total patients per tap water level group
+         se = c(1,1,1), # sensitivity
+         sp = c(1,1,1), # specificity
+         units = 100)  # per 100 patients
 
 prevObj$ap
 ```
 
+The prevalence is estimated to increase with increasing tap water exposure levels. We see that the 95% confidence intervals for the lowest tap water exposure level do not intersect with the 95% confidence intervals for the other two levels, but the confidence intervals for the intermediate and highest levels do.
+
 ## Relative Risk and Odds Ratio
+
+We can talk about basic ways of comparing event rates and proportions among different groups, now that we've defined what rates and proportions are. To communicate how much being in a group affects risk of an event, we use relative risks and odds ratios.
 
 **Risk factor**: A characteristic which may increase the risk of an event.
 
 **Relative Risk**: (Probability of an event among subjects with risk factor)/(Probability of an event among subjects without risk factor)
 
-We can calculate the relative risk of a patient with highest tap water exposure getting crytosporadiosis compared to a patient with lowest tap water exposure.
-
-
-```{r RR, options}
-highest <- 18
-highest.case <- 12
-lowest <- 31
-lowest.case <- 2
-
-# calculating RR by hand
-RR.case <- (highest.case/highest)/(lowest.case/lowest)
-
-
-# for tap water highest vs. lowest exposure
-epi.2by2(dat[c(3,1),], # reorganizing so first row is highest tap water exposure (risk factor)
-         method = "cohort.count")
-```
-
 **Odds**: (Probability of experiencing event)/(Probability of not experiencing event)
 
 **Odds Ratio**: (Odds of event among subjects with risk factor)/(Odds of event among subjects without risk factor)
 
+We can calculate the relative risk and odds ratio of a patient with highest tap water exposure getting crytosporadiosis compared to a patient with lowest tap water exposure. To illustrate the concept, we first calculate them by hand:
+
 ```{r OR, options}
+highest <- 18  # number of patients in highest tap water exposure level
+highest.case <- 12 # number of patients in highest tap water exposure level with cryto
+lowest <- 31 # number of patients in lowest tap water exposure level
+lowest.case <- 2 # number of patients in lowest tap water exposure level with cryto
+
+# calculating RR by hand
+RR.case <- (highest.case/highest)/(lowest.case/lowest)
+
+# calculating OR by hand
 highest.odds <- highest.case/(highest-highest.case)
 lowest.odds <- lowest.case/(lowest-lowest.case)
 
-highest.odds/lowest.odds
+OR.case <- highest.odds/lowest.odds
+
+
+```
+
+Using the `epiR` package, we can get estimates for relative risk and odds ratio, along with 95% confidence intervals. The two arguments we provide below are a 2 by 2 matrix (containing the contingency table rows corresponding to highest tap water exposure and lowest tap water exposure) and study design method. 
+
+```{r dat-reminder, options}
+dat
+```
+
+The 2 by 2 table we provide has to have a particular format specified in the documentation for `epi.2by2`. The first row and column correspond to the positive exposure (high tap water exposure) and positive disease state (cryto) respectively. 
+
+
+```{r epi, options}
+twoBytwo_high_low <- dat[c(3,1),]
 
 # for tap water highest vs. lowest exposure
-epi.2by2(dat[c(3,1),], # reorganizing so first row is highest tap water exposure (risk factor)
+epi.2by2(twoBytwo_high_low, # reorganizing so first row is highest tap water exposure (risk factor)
          method = "cohort.count")
 ```
 
-### Exercises: Measures
-
-TODO: from a tidy dataset, create the 2x2 table and calculate incidence, rate, RR and OR.
 
 # Group comparisons of events
 
-We can talk about basic ways of comparing event rates and proportions among different groups, now that we've defined what rates and proportions are. This is our first foray into statistical tests. This workshop is not meant to give statistical background on these tests, so stay tuned for the in-person workshop (or consult with a statistician) before using these tests in research projects.
+We can now go over basic formal statistical tests to find differences in event rates. This workshop is not meant to give statistical background on these tests, so stay tuned for the in-person workshop (or consult with a statistician) before using these tests in research projects.
 
-Below are three different ways of visualizing or testing proportion differences among groups.
+Below are some methods we use to test proportion differences among groups.
 
--   Correlation
--   2-proportion z-test
 -   Chi-square
+-   2-proportion z-test (multiple-adjusted)
 
-More sophisticated ways of testing event rate differences between groups (like logistic regression, adjusting for other variables) will be introduced later.
-
-### Correlation
-
-As discussed previously, correlation is a rough measure of how associated two variables are. The Pearson correlation we used previously for continuous variables makes the assumption of normality and linear relationship between variables, which does not apply for events (yes/no).
-
-Instead, we must use either Spearman or Kendall's Tau.
-
-### 2-proportion Z-Test (Parametric)
-
-The 2-proportion z-test approximates how likely we'd see the observed difference in proportions, assuming that the true proportions of the groups are actually the same.
-
-It assumes that if we took many samples from the two group populations, the resulting mean proportion would be normally distributed (bell-shaped). This usually holds if we have a large enough sample size.
+More sophisticated ways of modeling event rate differences between groups (like logistic regression, adjusting for other variables) will be introduced later.
 
 ### Chi-square (Non-parametric)
 
-Like the 2-proportion z-test, the chi-squared test approximates how likely we'd see the observed difference in proportions, assuming that the true proportions of the groups are actually the same.
+The chi-squared test approximates how likely we'd see the observed difference in proportions, assuming that the true proportions of the groups are actually the same. The null hypothesis in our case is that the proportion of case versus control patients is the same across all levels of tap water exposure. 
 
-It doesn't have the same normality assumption as the z-test, making it good for small samples where the assumption may not hold.
+The `chisq.test` function takes in a contingency matrix as its first argument. In our example, `dat` has three rows corresponding to the different tap water levels, and 2 columns corresponding to patients with and without crytosporidiosis.
+
+```{r dat-reminder-2, options}
+dat
+```
+
+The p-value returned indicates whether we can reject the null hypothesis. Like the ANOVA test in our last lecture, rejecting the null in this case only means that we can say that at least one group differs from another. In order to determine which pair or pairs of groups are different, we'll have to carry out another test.
 
 ```{r chisq, options}
-#chi
+#chi-square test
+chisq.test(dat)
 ```
+
+# 2-proportion Z-Tests (with Multiple Correction)
+
+The chi-square test can tell us if any differences exist in proportions between groups. We can use `pairwise.prop.test` to test specific pairwise group proportions of cases. This makes certain assumptions about our data (e.g. the sample proportion is normally distributed), and it adjusts for the multiple pairwise comparisons. 
+
+The output shows that differences for all pairwise comparisons are significant at the standard 0.05 type-I error.
+
+```{r prop_test, options}
+pairwise.prop.test(dat)
+```
+
+
 
 # Sensivity, Specificity, ROC
 
-One specialized application of categorical variables is analyzing the effectiveness of a diagnostic test for a disease. A clinical example would be analyzing HIV positivity in deceased people in Kenya with a rapid antigen/antibody test called OraQuick.
+One specialized application of categorical variables is analyzing the effectiveness of a diagnostic test for a disease. A clinical example would be analyzing HIV positivity in deceased people in Kenya with a rapid antigen/antibody test called OraQuick. 
 
-Key predictive measures include:
+Evaluation of the Performance of OraQuick Rapid HIV-1/2 Test Among Decedents in Kisumu, Kenya (https://pubmed.ncbi.nlm.nih.gov/34732683/)
 
-- sensitivity
-- specificity
-- PPV
-- NPV
-- LR+
-- LR-
+We can quantify how well OraQuick identifies HIV positive status by comparing each OraQuck result to a gold standard test result. Each pair of results is classified into one of the following categories:
+
+- true negative (TN): OraQuick returns an HIV- result and so does the gold standard
+- false negative (FN): OraQuick returns an HIV- result, but the gold standard returns an HIV+ result
+- true positive (TP): OraQuick returns an HIV+ result and so does the gold standard
+- false positive (FP): OraQuick returns an HIV+ result, but the gold standard returns an HIV- result
+
+From the 132 OraQuick swabs administered and compared to gold standard tests, there were 25 true positive, 102 true negative, 2 false negative, and 3 false positive swabs.
+
+
+From the counts of pairs which fall into the four above categories, we can calculate predictive measures including:
+
+- sensitivity: TP/(TP + FN)
+- specificity: TN/(TN + FP)
+- PPV: TP/(TP + FP)
+- NPV: TN/(TN + FN)
 
 The `epi.tests` function returns point estimates and confidence intervals for all of the above measures.
 
@@ -170,9 +227,169 @@ true.neg <- 102
 false.neg <- 2
 false.pos <- 3
 
-epi.tests(dat = c(true.pos, false.pos, false.neg, true.neg),
+epi.tests(dat = c(true.pos, false.pos, false.neg, true.neg), # vector of counts for TP, FP, FN, TN
           method = "wilson")
 ```
 
-# Bibliography 
-Opollo, Valarie PhDa; Nyakeriga, Emmanuel MScb; Kingwara, Leonard MScc; Sila, Alex BScb; Oguta, Macxine BSca; Oyaro, Boaz BSca; Onyango, Dickens MBChBd,e,f; Mboya, Frankline O. MScg; Waruru, Anthony PhDg; Musingila, Paul BScg; Mwangome, Mary MBChBb; Nyagah, Lilly M. MBChBc; Ngugi, Catherine MBChBc; Sava, Solomon MBChBc; Waruiru, Wanjiru MBChBb; Young, Peter W. MBChBg; Junghae, Muthoni PhDg. Evaluation of the Performance of OraQuick Rapid HIV-1/2 Test Among Decedents in Kisumu, Kenya. JAIDS Journal of Acquired Immune Deficiency Syndromes 89(3):p 282-287, March 1, 2022. | DOI: 10.1097/QAI.0000000000002857 
+A question that is often of interest prior to experiments involving the above diagnostic tests is how many observations are needed to estimate the accuracy of a diagnostic test with good statistical power. In our example, we can ask how many OraQuick samples we need to determine a sensitivity estimate within 7% of the true population sensitivity with 95% confidence.
+
+To estimate the minimum sample size, we need to know or set the
+
+- prevalence of the disease (estimated to be 0.21)
+- desired sensitivity or desired specificity 
+- type I error (set to be 0.05)
+- maximum allowed error (set to be 0.07)
+
+```{r samp-size-pred-measures, options}
+epi.ssdxsesp(test = 0.9, # prior estimate of sensitivity or specificity
+             type = "se", # sensitivity (se) or specificity (sp)
+             Py = 0.21, # estimate of prevalence
+             epsilon = 0.07, # maximum difference between estimate and unknown population value
+             error = "absolute", # whether epsilon is absolute error (absolute) or relative
+             nfractional = FALSE, # whether sample size can be fractional
+             conf.level = 0.95) # level of confidence in computed result
+```
+
+## ROC
+
+Instead of relying on an existing binary variable (in the previous example, the OraQuick result) to predict a condition, we may want to take an existing continuous variable and define a cutoff point which splits the variable values into two groups. An example involving the OraQuick trial would be using measured HIV RNA levels to predict whether the gold standard test is positive or not; if RNA levels are above a certain cutoff point, we predict the patient is HIV+, and if they are below the cutoff, we predict the patient is HIV-.
+
+By changing the cutoff, we can alter the sensitivity and specificity of the diagnostic, even though the data stays the same. An ROC curve visualizes how the sensitivity and specificity changes with cutoff.
+
+In the below example, the goal is to predict whether patients had diabetes based on cholesterol levels. The "gold standard" test was whether patients had glycosylated hemoglobin more than 7 (`dtest`=+), and the continuous variable we'd like to treat like a diagnostic score and binarize using a cutoff is cholesterol (`chol`).
+
+```{r diabetes, options}
+diabetes_simp <- Diabetes %>% 
+       select(id, chol, dtest) %>%
+  drop_na()
+
+head(diabetes_simp)
+```
+
+```{r diabetes-viz, options}
+diabetes_simp %>%
+  ggplot(aes(x=dtest, y = chol)) +
+  geom_boxplot() +
+  labs(x="Diabetes", y = "Cholesterol")
+```
+
+To fit a ROC curve to cholesterol and the gold standard, we use the `rocit` function from the `ROCit` package. The arguments include
+
+- score: a vector of the diagnostic scores of the observations
+- class: a vector of the true gold standard class of the observations
+- negref: the reference class value
+
+Plotting the ROC curve shows that using cholesterol is better than guessing diabetes status at random (the diagonal gray line, corresponding to the diagnostic score not having any diagnostic value).
+
+
+
+```{r ROC, options}
+roc_empirical <- rocit(score = diabetes_simp$chol, 
+                       class = diabetes_simp$dtest,
+                       negref = "-")
+
+plot(roc_empirical)
+
+```
+
+From the summary of the `rocit` object, we can see basic information about the ROC curve, including number of positive and negative class values, and area under the curve (AUC), which is a measure summarizing how discriminatory the diagnostic score is.
+
+```{r summ-rocit, options}
+summary(roc_empirical)
+```
+
+In order to find the optimal cutoff point, we define the method of defining the optimal point (do we want to maximize or minimize a value?), as well as a value to optimize (e.g. fraction correctly classified, or the summed sensitivity and specificity). 
+
+Using the `cutpointr` function from the `cutpointr` package, we can find a cutoff value for the diagnostic score which maximizes our chosen metric. Necessary inputs are the data, the column name of the diagnostic score, and column name of the gold standard class. See the documentation for possible `method` and `metric` values.
+
+```{r cutoff, options}
+cp <- cutpointr(data = diabetes_simp, 
+                x = chol, 
+                class = dtest, 
+                method = maximize_metric,
+                metric = sum_sens_spec,
+                na.rm = TRUE)
+
+summary(cp)
+```
+
+We can get the specificities, sensitivities, and cutoffs used to plot the ROC with the following code:
+
+```{r plot-points-ROC, options}
+# get cutoffs, sensitivity, and specificity used to create plot
+print(with(roc_empirical, 
+           data.frame(TPR, FPR, Cutoff) %>%
+             mutate(specificity=1-FPR) %>%
+             select(-FPR)))
+```
+
+### Exercises: Measures
+
+Consider the `Diabetes` dataset from the epitools package. Our goal is two-fold: see if `dtest` varies by `frame` and how well `dtest` could be predicted with `whr`. Use the dataframe below.
+
+```{r diabetes_ex, options}
+diabetes_simp_ex <- Diabetes %>%
+  select(id, frame, whr, dtest) %>%
+  drop_na()
+```
+
+1. Use the `table` function to create a contingency matrix for how `dtest` varies by `frame`.
+
+```{r get-counts, options}
+dat_Ex <- table(diabetes_simp_ex$frame, diabetes_simp_ex$dtest)[, c(2,1)]
+
+```
+
+2. Calculate the apparent prevalence of diabetes by frame, along with 95% confidence intervals, using the `epi.prev` function.
+
+```{r prev, options}
+prevObj_Ex <-epi.prev(dat_Ex[,1],
+         dat_Ex[,1]+dat_Ex[,2],
+         se=c(1,1,1),
+         sp=c(1,1,1),
+         units=100)
+
+prevObj_Ex$ap
+```
+
+
+3. Calculate the OR/RR of diabetes diagnosis for a large vs. small frame using the `epi.2by2` function. Large should be on top.
+
+```{r OR-RR, options}
+epi.2by2(dat_Ex[c(1,3),],
+         method = "cohort.count")
+```
+
+4. Conduct a chi-square test of whether proportion of diabetics differs between people of various frames, followed by the multiply-adjusted proportion tests. How would you interpret this?
+
+```{r chi-z, options}
+chisq.test(dat_Ex)
+
+pairwise.prop.test(dat_Ex)
+```
+
+
+5. Using `whr` as a diagnostic score, plot and summarize the ROC for predicting diabetes status.
+
+```{r roc, options}
+roc_whr <- rocit(score = diabetes_simp_ex$whr, 
+                       class = diabetes_simp_ex$dtest,
+                       negref = "-")
+
+plot(roc_whr)
+summary(roc_whr)
+```
+
+
+6. Find the optimal cutoff point (maximizing the accuracy) for using `whr` to predict diabetes status.
+
+```{r cutoff-ex, options}
+cp_whr <- cutpointr(data = diabetes_simp_ex, 
+                x = whr, 
+                class = dtest, 
+                method = maximize_metric,
+                metric = accuracy,
+                na.rm = TRUE)
+
+summary(cp_whr)
+```

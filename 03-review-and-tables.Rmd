@@ -26,11 +26,11 @@ In this RMD, we will review key concepts from the two previous lectures (glossin
 
 # Loading in Packages
 
-TODO: add how to install packages
-
 Recall that in order to use functions that are not included in base R, we need to load in their corresponding libraries. Usually, it's good practice to load in all libraries at the beginning so you can keep track of them and use their functions wherever you'd like. If you try to use a function before loading its library, it will not work.
 
 However, for clarity during this lecture, we'll call the libraries `tidyverse` and `table1` before the first time we need them.
+
+If trying to load a library gives you an error, make sure you've installed the package already (using `install.packages`).
 
 # Reading in Data
 
@@ -139,7 +139,15 @@ Out of the above base R functions, quantile is the most complicated. Let's look 
 median(dataMedEff$crcl_bsl)
 quantile(dataMedEff$crcl_bsl, c(0.25, 0.75))
 ```
-TODO: add `table` for categorical variables
+For categorical variables, you can use the `table` function, which takes in one or more columns. If there are more than one column provided as arguments, the function returns a cross-tabulation.
+
+```{r table, options}
+# counts for Arm
+table(dataMedEff$Arm)
+
+# cross-tab for Arm and sex
+table(dataMedEff$Arm, dataMedEff$sex)
+```
 
 ### Summary Function
 
@@ -236,7 +244,7 @@ For example, say we want to find the mean and SD of HIV RNA by week.
 ```{r group-mean, options}
 dataMedEffLong %>%
   group_by(week) %>%
-  summarize(meanHIVRNA = mean(hivRNA),
+  dplyr::summarize(meanHIVRNA = mean(hivRNA),
             sdHIVRNA = sd(hivRNA))
 ```
 
@@ -246,7 +254,7 @@ You can summarize whatever summary statistic you can code up, and we are able to
 ```{r multiple-sums, options}
 dataMedEffLong %>%
   group_by(week) %>%
-  summarize(meanHIVRNA = mean(hivRNA),
+  dplyr::summarize(meanHIVRNA = mean(hivRNA),
             sdHIVRNA = sd(hivRNA),
             medCreat = median(crcl_bsl))
 ```
@@ -272,6 +280,10 @@ dataMedEff_Ex <- read.csv("Data/data_medEff_Ex.csv")
 
 2. What variables are in this dataset? How do you know this is in wide format?
 
+```{r answer-2, options}
+colnames(dataMedEff_Ex)
+```
+
 In addition to some of the original variables we worked with, it has the following additional ones:
 
 - aids\_dx: Prior AIDS diagnosis
@@ -284,15 +296,73 @@ The next variable is the only variable that varies by timepoint:
 
 3. In the current format, find summary statistics for all variables. 
 
+```{r answer-3, options}
+summary(dataMedEff_Ex)
+```
+
 4. Find the 60th quantile for CD4 by each timepoint.
+
+```{r answer-4, options}
+quantile(dataMedEff_Ex$CD4_0, 0.6)
+quantile(dataMedEff_Ex$CD4_24, 0.6)
+quantile(dataMedEff_Ex$CD4_48, 0.6)
+quantile(dataMedEff_Ex$CD4_96, 0.6)
+
+# more concise: apply the quantile function across the chosen columns
+apply(dataMedEff_Ex %>%
+        select(starts_with("CD4")),
+      MARGIN=2,
+      function(x) quantile(x, 0.6))
+
+```
 
 5. Make a table of all variables.
 
+```{r answer-5, options}
+table1(~Arm + aids_dx + modeT + CD4_0 +
+        CD4_24 + CD4_48 + CD4_96,
+      dataMedEff_Ex)
+```
+
+
 6. Pivot the dataframe so that patient-week is now the unit of observation and name it `dataMedEff_Ex_Long`.
+
+```{r answer-6, options}
+dataMedEff_Ex_Long <- dataMedEff_Ex %>%
+  pivot_longer(cols = starts_with("CD4"),
+               names_to = "Week",
+               values_to = "CD4")
+```
 
 7. Find the 60th quantile for CD4 by each timepoint (using the long dataframe).
 
+```{r answer-7, options}
+dataMedEff_Ex_Long %>%
+  group_by(Week) %>%
+  dplyr::summarize(quant60_CD4 = quantile(CD4, 0.6))
+```
+
 8. Make a table of CD4 stratified by timepoint.
+
+```{r answer-8, options}
+table1(~CD4 | Week,
+       dataMedEff_Ex_Long )
+```
+
 
 9. Bonus: Read in data_effMed.csv and pivot it wider to get the dataframe we read in from data_effMed_Simplified.csv (at the beginning of this RMD).
 
+```{r answer-9, options}
+read.csv("Data/data_medEff.csv") %>%
+  filter(week %in% c(0, 24, 48, 96)) %>%
+  select(ntisid, week, Arm,
+         age, sex, race,
+         crcl_bsl,
+         hivRNA) %>%
+  pivot_wider(names_from = "week",
+              values_from = "hivRNA",
+              names_glue = "{.value}_{week}") %>%
+  drop_na() %>%
+  write.csv("Data/data_medEff_Simplified.csv",
+            row.names = FALSE)
+```

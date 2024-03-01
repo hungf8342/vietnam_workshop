@@ -10,16 +10,8 @@ output:
     toc_float: true
 ---
 
-```{r setup, include=FALSE}
+```{r setup, echo=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message=FALSE)
-library(tidyverse)
-library(Gmisc)
-library(Hmisc)
-library(gtsummary)
-library(broom)
-library(medicaldata)
-library(PASWR2)
-#library(flextable)
 ```
 
 Today, we will briefly go over common measures used to describe continuous data:
@@ -29,13 +21,31 @@ Today, we will briefly go over common measures used to describe continuous data:
 
 Statistical models will often make inferences on centrality measures, and these models will also need measures of spread as input. 
 
-After this, we will cover basic ways of comparing continuous measures between groups differentiated by a characteristic. Some of these concepts (t-tests, correlation) are also applicable to and important for understanding discrete data as well.
+After this, we will cover basic ways of comparing continuous measures between groups differentiated by one or more characteristics. These include
 
-## Review: Data Cleaning and Visualization
+- T-test
+- ANOVA
+
+# Packages Used Today
+
+-   base R (loaded by default and used for any coding in R)
+-   `tidyverse` for data wrangling
+- `medicaldata` for a dataset
+- `PASWR2` for a summarized t-test function
+
+```{r libs, options}
+library(tidyverse)
+library(medicaldata)
+library(PASWR2)
+```
+
+# Review: Data Cleaning and Visualization
 
 Since today's lecture is focused on continuous variables, let's clean and visualize a dataset that we can use for the remainder of the lecture. For this lecture and the next few, we'll use a dataset called `indo_rct` which has data from a randomized control trial (RCT) on using indomethacin for prevention of post-ERCP pancreatitis. 
 
-For today's outcome, we'll focus on the continuous measure `risk` (a patient's estimated risk score). Other variables that we'll need for today are:
+Patients who undergo an endoscopic procedure (ERCP) to diagnose pancreatic cancer or treat blockages can develop a complication called post-ERCP pancreatitis. In this study, some patients received indomethacin while others received a placebo to study if indomethacin reduced the occurence of post-ERCP pancreatitis. 
+
+For today's outcome, we'll focus on the continuous measure `risk` (a patient's estimated risk score for developing the complication). Other variables that we'll need for today are:
 
 - age
 - pep (risk factor: previous post-ERCP pancreatitis)
@@ -62,39 +72,9 @@ indo_rct_day3_clean <- indo_rct_day3 %>%
 head(indo_rct_day3_clean)
 ```
 
-
-## Centrality Measures
-
-The goal of statistics is to simplify data into easily interpretable numbers. The ones we often use to describe "average" behavior include the mean, median, and mode.
-
-The **mean** of a continuous variable is the sum of continuous values from the sample divided by the sample size. 
-
-The **median** of a continuous variable is the number at the 
-
-The **mode** of a continuous variable may not be as meaningful as the other two centrality measures.
-
-To compare centrality measures by group, we calculate the mean and median of risk score by pep and psphinc using `group_by` and `summarize` from tidyverse.
-
-```{r centrality-ex, options}
-indo_rct_day3_clean %>%
-  group_by(pep, psphinc) %>%
-  summarise(mean_risk = mean(risk),
-            median_risk = median(risk))
-```
-
-## Group comparisons of events
-
-We can talk about basic ways of comparing continuous centrality measures among different groups, now that we've defined what centrality and spread measures are. This is our first foray into statistical tests. This workshop is not meant to give statistical background on these tests, so stay tuned for the in-person workshop (or consult with a statistician) before using these tests in research projects.
-
-Below are three different ways of describing or testing continuous centrality measure differences among groups.
-
--   Correlation
--   T-test
--   Wilcoxon (here for reference, will not cover)
-
-More sophisticated ways of testing continuous measure differences between groups (like linear regression, adjusting for other variables) will be introduced later.
-
 ## Correlation
+
+As a short aside, we can talk about a simple way of measuring how two continuous variables are associated with one another.
 
 Correlation is a rough measure of how associated two variables are. Most correlation measures range from -1 to 1, where a correlation of 1 means as one variable becomes more positive, the other does as well. A correlation of -1 means that as one variable becomes more positive, the other becomes more negative, and a correlation of 0 means no relationship.
 
@@ -108,6 +88,67 @@ cor(indo_rct_day3_clean$risk, indo_rct_day3_clean$age,
 
 cor(indo_rct_day3_clean$risk, indo_rct_day3_clean$age,
     method = "spearman")
+```
+
+# Summary Measures
+
+The goal of statistics is to simplify data into easily interpretable numbers. 
+
+## Centrality Measures
+
+The centrality measures we often use to describe "average" behavior include the mean, median, and mode.
+
+The **mean** of a continuous variable is the sum of continuous values from the sample divided by the sample size. 
+
+The **median** of a continuous variable is the number at the middle of the ordered variable values.
+
+The **mode** of a continuous variable may not be as meaningful as the other two centrality measures. It's the value which appears most often.
+
+To compare centrality measures by group, we calculate the mean and median of risk score by pep and psphinc using `group_by` and `summarize` from tidyverse.
+
+```{r centrality-ex, options}
+indo_rct_day3_clean %>%
+  group_by(pep, psphinc) %>%
+  summarise(mean_risk = mean(risk),
+            median_risk = median(risk))
+```
+
+## Measures of Spread
+
+Measures of spread provide a summary of how spread-out a variable's values are. Common measures include standard devation, IQR, and range.
+
+To compare measures of spread by group, we add on summarized measures onto the mean and median of risk score by pep and psphinc using `group_by` and `summarize` from tidyverse.
+
+```{r spread-ex, options}
+indo_rct_day3_clean %>%
+  group_by(pep, psphinc) %>%
+  summarise(mean_risk = mean(risk),
+            median_risk = median(risk),
+            sd_risk = sd(risk),
+            Q1_risk = quantile(risk, 0.25),
+            Q3_risk = quantile(risk, 0.75),
+            min_risk = min(risk),
+            max_risk = max(risk))
+```
+
+# Group comparisons of continuous values
+
+We will go over basic ways of comparing continuous centrality measures among different groups, now that we've defined what centrality and spread measures are. This is our first foray into statistical tests. This workshop is not meant to give statistical background on these tests, so stay tuned for the in-person workshop (or consult with a statistician) before using these tests in research projects.
+
+Below are a few different ways of describing or testing continuous centrality measure differences among groups.
+
+-   T-test
+-   Wilcoxon (here for reference, will not cover)
+-   ANOVA
+
+To visualize our problem of interest clearly, let's refer to the below density plot of risk scores, colored by `pep`. The t-test and Wilcoxon test examples will make conclusions about whether a centrality measure of the continuous variable (`risk`) differs between patients with previous PEP and patients without previous PEP.
+
+```{r pep-hist, echo=FALSE}
+indo_rct_day3_clean %>%
+  ggplot(aes(x=risk, color=pep)) +
+  geom_density(position = "dodge") +
+  labs(x="Risk", y="Density of Patients",
+       color="Previous PEP")
 ```
 
 ## 2-Group Comparisons
@@ -174,6 +215,8 @@ tsum.test(mean.x = sumStatsPepRisk %>%
           conf.level = 0.95) #alpha (type-I error) is 0.05
 ```
 
+In both of the t-test results, note that the p-value is less than our chosen type-I error of 0.05, meaning that we have evidence that risk score is significantly different between patients with previous PEP and without previous PEP.
+
 #### Changing Parameters
 
 In both the t-test and summarized t-test functions, we can change parameter values to suit our problem of interest:
@@ -194,13 +237,15 @@ It doesn't have the same normality assumption as the t-test, making it good for 
 wilcox.test(indo_rct_day3_clean$risk ~ indo_rct_day3_clean$pep)
 ```
 
-## ANOVA: Comparisons of more than 2 groups
+# ANOVA: Comparisons of more than 2 groups
 
 The above measures (t-test, Wilcoxon Rank Sum) test if there's evidence that a continuous variable differs between two groups. In order to test if a continuous variable differs between more than 2 groups, we can use ANOVA.
 
 Like the t-test, ANOVA assumes that the continuous values in each group are roughly normally distributed, randomly sampled, and independent.
 
-```{r dataf, options}
+Below, we are creating a dataframe for illustration. Say we measure HIV RNA levels for 20 patients at three hospitals (A, B, C). Out of those 20 in each hospital, 10 get a new treatment and 10 act as a control. 
+
+```{r dataf, echo=FALSE}
 hiv_rna_sim <- data.frame(hospital=c(rep("A", 20), rep("B", 20), rep("C", 20)),
            treatment=rep(c(rep("trt", 10), rep("control", 10)), 3))
 
@@ -208,11 +253,29 @@ anova_df <- hiv_rna_sim %>%
   mutate(hospMean = case_when(hospital=="A" ~ 10,
                               hospital=="B" ~ 12,
                               hospital=="C" ~ 24),
-         trtEffect = if_else(treatment == "trt", 12, 0)) %>%
+         trtEffect = if_else(treatment == "trt", 12, 0),
+         id = 1:nrow(.)) %>%
   rowwise() %>%
   mutate(hiv_rna = hospMean + rnorm(1, 0, 7) + 
-           trtEffect + rnorm(1, 0, 5))
+           trtEffect + rnorm(1, 0, 5)) %>%
+  mutate(hiv_rna = if_else(hiv_rna<0, 0, hiv_rna))
 
+head(anova_df %>%
+       select(id, hiv_rna, hospital, treatment))
+```
+
+The HIV RNA levels are distributed across hospitals and treatment groups as follows:
+
+```{r hiv-rna-hist, echo=FALSE, fig.height=3}
+anova_df %>%
+  select(id, hiv_rna, hospital, treatment) %>%
+  pivot_longer(cols = -c(id, hiv_rna), names_to = "Stratifier",
+               values_to = "value") %>%
+  ggplot(aes(x=hiv_rna, color=value), alpha=0.5) +
+  geom_density(position = "dodge") +
+  facet_wrap(.~Stratifier, scales = "free") +
+  labs(x="HIV RNA", y="Density of Patients",
+       color="Hospital/Treatment")
 ```
 
 ### One-way ANOVA
@@ -224,18 +287,18 @@ An equivalent way of using the command is omitting the data argument and using v
 To ensure that ANOVA treats the independent variable as a categorical variable, we designate all character variables as factors either in the formula or before running, in the dataset.
 
 ```{r aov, options}
-anova.risk <- aov(hiv_rna ~ factor(hospital),
+anova.hiv <- aov(hiv_rna ~ factor(hospital),
     data = anova_df)
 
 # equivalent
-# anova.risk <- aov(anova_df$hiv_rna ~ factor(anova_df$hospital))
+# anova.hiv <- aov(anova_df$hiv_rna ~ factor(anova_df$hospital))
 
 ```
 
 To see results, we use the `summary` command. The key value to look at here is the `Pr(>F)` column; if it is less than our chosen type-I error (in most cases, 0.05), then there is evidence that at least one pair of groups has differing continuous variable means. 
 
 ```{r summary-aov, options}
-summary(anova.risk)
+summary(anova.hiv)
 ```
 
 In this example, the F-value is less than 0.05, so we conclude that there is evidence that at least one hospital has different mean HIV RNA measurements than another.
@@ -247,7 +310,7 @@ In order to determine which hospitals have different mean HIV RNA measurements, 
 We can use the Tukey HSD test. The `TukeyHSD` command takes in one argument: the anova fit object that we want to run the test on.
 
 ```{r tukey, options}
-TukeyHSD(anova.risk)
+TukeyHSD(anova.hiv)
 ```
 The `p adj` column indicates the p-values adjusted for multiple comparisons for each pair of hospitals. Looking for adjusted p-values less than 0.05, we can see that hospital C has significantly different means from hospitals A and B. 
 
@@ -256,10 +319,10 @@ The `p adj` column indicates the p-values adjusted for multiple comparisons for 
 We can account for an additional variable in ANOVA via two-way ANOVA. We can add the `treatment` variable to the formula argument in `aov`.
 
 ```{r aov-2, options}
-anova.risk <- aov(hiv_rna ~ hospital + treatment,
+anova.hiv <- aov(hiv_rna ~ hospital + treatment,
     data = anova_df)
 
-summary(anova.risk)
+summary(anova.hiv)
 ```
 
 The summary of our model fit tells us there are differences in mean HIV RNA between treatments and at least one pair of hospitals.
@@ -280,33 +343,55 @@ $$hiv\_rna \sim factor(timepoint) + Error(subject/timepoint)$$
 
 We'll see if mean or median age is different between pep groups.
 
-1. Use `group_by` and `summarise` to find the mean and median age for patients with and without pep.
-2. Use a two-sided t-test to test if mean age differs between patients with and without pep.
-3. Use a one-sided t-test to test if mean age is lower in patients with compared to patients without pep.
-4. Use two-way ANOVA to test if mean age differs in patients with/without pep and patients with/without psphinc. Interpret the results.
-5. Look up how to add interaction effects into the formula argument for `aov`. Add an interaction between pep and psphinc to the two-way ANOVA model. Use TukeyHSD to help interpretation.
+1. Use `group_by` and `summarise` to find the mean, standard deviation, and median age for patients with and without pep.
 
-```{r answers-comparison-tests, options}
-t.test(indo_rct_day3_clean$age ~ indo_rct_day3_clean$pep, #alternative hypothesis: mean risk differs by pep status
+```{r answer-1, options}
+indo_rct_day3_clean %>%
+  group_by(pep) %>%
+  summarise(meanAge = mean(age),
+            sdAge = sd(age),
+            medianAge = median(age))
+```
+
+2. Use a two-sided t-test to test if mean age differs between patients with and without pep.
+
+```{r answer-2, options}
+t.test(age ~ pep,
+       data=indo_rct_day3_clean,
        alternative = "two.sided", #two-sided alternative hypothesis
        mu = 0, #null hypothesis: difference is 0
        paired = FALSE, #group observations are not paired 
        var.equal = FALSE, #variances are not equal
-       conf.level = 0.95) #alpha (type-I error) is 0.05
+       conf.level = 0.95)
+```
 
-t.test(indo_rct_day3_clean$age ~ indo_rct_day3_clean$pep, #alternative hypothesis: mean risk differs by pep status
-       alternative = "greater", #two-sided alternative hypothesis
+3. Use a one-sided t-test to test if mean age is lower in patients with compared to patients without pep.
+
+```{r answer-3, options}
+t.test(age ~ pep,
+       data=indo_rct_day3_clean,
+       alternative = "greater", #no > yes alternative hypothesis
        mu = 0, #null hypothesis: difference is 0
        paired = FALSE, #group observations are not paired 
        var.equal = FALSE, #variances are not equal
-       conf.level = 0.95) #alpha (type-I error) is 0.05
+       conf.level = 0.95)
+```
 
+4. Use two-way ANOVA to test if mean age differs in patients with/without pep and patients with/without psphinc. Interpret the results.
+
+```{r answer-4, options}
 anova.age <- aov(age ~ pep + psphinc,
+    data = indo_rct_day3_clean)
+
+summary(anova.age)
+```
+
+5. Look up how to add interaction effects into the formula argument for `aov`. Add an interaction between pep and psphinc to the two-way ANOVA model. Use TukeyHSD to help interpretation.
+
+```{r answer-5, options}
+anova.age <- aov(age ~ pep + psphinc + pep:psphinc,
     data = indo_rct_day3_clean)
 summary(anova.age)
 
-anova.age.interact <- aov(age ~ pep + psphinc + pep:psphinc,
-    data = indo_rct_day3_clean)
-summary(anova.age.interact)
-TukeyHSD(anova.age.interact)
+TukeyHSD(anova.age)
 ```
